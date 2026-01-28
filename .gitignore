@@ -1,0 +1,24 @@
+# --- Python Standard ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Virtual Environments (Crucial!) ---
+venv/
+.venv/
+env/
+.env
+
+# --- Distribution / Builds ---
+build/
+dist/
+*.egg-info/
+
+# --- Jupyter Notebooks (If you use them) ---
+.ipynb_checkpoints
+
+# --- Doom Emacs / System ---
+.DS_Store
+*~
+\\#*\\#
+.#*
