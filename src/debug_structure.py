@@ -1,52 +1,55 @@
 import subprocess
-import json
-import sys
+import re
 
-def get_raw_usb_data():
-    """Calls system_profiler and returns the raw JSON list."""
-    cmd = ["system_profiler", "SPUSBDataType", "-json"]
+def scan_ioreg():
+    """
+    Uses the raw 'ioreg' command to find USB devices.
+    This bypasses the simplified system_profiler view.
+    """
+    print("🔍 Deep Scanning via I/O Kit Registry...")
+
+    # -p IOUSB runs a scan strictly on the USB plane
+    # -l shows all properties (where IDs live)
+    # -w0 prevents line truncation
+    cmd = ["ioreg", "-p", "IOUSB", "-l", "-w0"]
+
     try:
-        output = subprocess.check_output(cmd)
-        data = json.loads(output)
-        return data.get("SPUSBDataType", [])
+        output = subprocess.check_output(cmd).decode("utf-8")
     except Exception as e:
-        print(f"Error fetching data: {e}")
-        sys.exit(1)
+        print(f"❌ Error running ioreg: {e}")
+        return
 
-def print_node(node, depth=0):
-    """
-    Recursively prints a node and its children with indentation.
-    This mimics the 'tree' command for your USB ports.
-    """
-    indent = "    " * depth
-    name = node.get("_name", "Unknown Device")
+    # We are looking for the block that contains your known Product ID (14373)
+    # The output format is messy, so we split by device blocks
+    devices = output.split("+-o")
 
-    # Extract IDs raw (so we see exactly what Python sees)
-    vid = node.get("vendor_id", "N/A")
-    pid = node.get("product_id", "N/A")
+    for dev in devices:
+        # Check if our target Product ID is in this block
+        # ioreg usually lists it as "idProduct" = 14373
+        if "14373" in dev:
+            print("\n✅ TARGET FOUND IN REGISTRY!")
 
-    # Print the current node
-    print(f"{indent}├── 📦 {name}")
-    if vid != "N/A":
-        print(f"{indent}│    └── IDs: {vid} / {pid}")
+            # Extract Name
+            name_match = re.search(r'"USB Product Name" = "([^"]+)"', dev)
+            name = name_match.group(1) if name_match else "Unknown Name"
 
-    # CRITICAL: Check for children (hubs usually have '_items')
-    # Some devices might use 'items' or other keys, let's check keys.
-    if "_items" in node:
-        for child in node["_items"]:
-            print_node(child, depth + 1)
+            # Extract Vendor ID
+            # Look for "idVendor" = 1234
+            vendor_match = re.search(r'"idVendor" = (\d+)', dev)
+            if vendor_match:
+                vid = int(vendor_match.group(1))
+                print(f"   Name:      {name}")
+                print(f"   Vendor ID: {vid} (0x{vid:04x})")
+                print(f"   Product ID: 14373 (0x3825)")
+                print("-" * 40)
+                print("👉 This is the OFFICIAL hardware ID.")
+                return vid
+            else:
+                print("⚠️ Found the device, but Vendor ID is missing in IORegistry.")
 
-    # DEBUG: Check if there are other list-type keys we missed?
-    # This helps us catch if macOS uses a different key for this specific dock.
-    elif "items" in node:
-        print(f"{indent}│    ⚠️ FOUND 'items' key instead of '_items'!")
-        for child in node["items"]:
-            print_node(child, depth + 1)
+    print("\n❌ Device 14373 not found in IOUSB plane.")
 
 if __name__ == "__main__":
-    print("🔍 VISUALIZING USB HIERARCHY\n")
-    roots = get_raw_usb_data()
-
-    for root in roots:
-        print_node(root)
-        print("\n" + "="*40 + "\n")
+    vid = scan_ioreg()
+    if vid:
+        print(f"\nFinal Config Value -> vendor_id: {vid}")
