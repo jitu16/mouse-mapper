@@ -22,7 +22,7 @@ LAYER_NAME = "naga_nav_mode"
 def generate_master_json():
     print(f"🔨 Recreating 'Naga Master' Profile for Device {VID}/{PID}...")
 
-    rules = []
+    manipulators = []
 
     # ==========================================================================
     # 1. THE MODIFIER: Scroll Wheel Click (Button 3)
@@ -34,7 +34,7 @@ def generate_master_json():
         layer_variable=LAYER_NAME,
         threshold_ms=200
     )
-    rules.append(compile_rule(mod_btn, VID, PID))
+    manipulators.append(compile_rule(mod_btn, VID, PID))
 
     # ==========================================================================
     # 2. LAYER ACTIONS: What happens when Modifier is HELD?
@@ -47,14 +47,10 @@ def generate_master_json():
         tap_action=Action(key_code="left_arrow", modifiers=["left_control"])
     )
     rule_layer_1 = compile_rule(layer_action_1, VID, PID)
-
-    # INJECT the Layer Condition (Must hold button3)
     add_layer_condition(rule_layer_1, LAYER_NAME, 1)
-
-    # OPTIONAL: Allow other modifiers (like holding Command) while doing this
+    # Optional: Allow other modifiers (like holding Command) while doing this
     rule_layer_1["from"]["modifiers"] = {"optional": ["any"]}
-
-    rules.append(rule_layer_1)
+    manipulators.append(rule_layer_1)
 
     # Action B: Hold Modifier + Press '2' -> Right Arrow (Move Space Right)
     layer_action_2 = ButtonConfig(
@@ -65,7 +61,7 @@ def generate_master_json():
     rule_layer_2 = compile_rule(layer_action_2, VID, PID)
     add_layer_condition(rule_layer_2, LAYER_NAME, 1)
     rule_layer_2["from"]["modifiers"] = {"optional": ["any"]}
-    rules.append(rule_layer_2)
+    manipulators.append(rule_layer_2)
 
     # ==========================================================================
     # 3. DEFAULT ACTIONS: What happens normally?
@@ -77,7 +73,7 @@ def generate_master_json():
         behavior=ButtonBehavior.CLICK,
         tap_action=Action(key_code="mission_control")
     )
-    rules.append(compile_rule(default_1, VID, PID))
+    manipulators.append(compile_rule(default_1, VID, PID))
 
     # Action D: Tap '2' -> Close Tab (Chrome Only)
     default_2 = ButtonConfig(
@@ -87,19 +83,16 @@ def generate_master_json():
     )
     rule_default_2 = compile_rule(default_2, VID, PID)
     add_app_restriction(rule_default_2, "^com\\.google\\.Chrome$")
-    rules.append(rule_default_2)
+    manipulators.append(rule_default_2)
 
     # ==========================================================================
-    # OUTPUT
+    # OUTPUT (FIXED FORMAT)
     # ==========================================================================
+    # Outputting a single Rule Object (Description + Manipulators)
+    # This structure can be pasted directly into the "rules" array.
     final_json = {
-        "title": "MouseMapper: Naga Master Profile (Generated)",
-        "rules": [
-            {
-                "description": "Generated via src/core.py",
-                "manipulators": rules
-            }
-        ]
+        "description": "MouseMapper: Naga Master Profile (Generated)",
+        "manipulators": manipulators
     }
 
     print(json.dumps(final_json, indent=2))

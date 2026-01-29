@@ -46,10 +46,6 @@ class ButtonConfig:
 def add_app_restriction(manipulator: Dict[str, Any], app_id: Optional[str]) -> None:
     """
     Injects the 'frontmost_application_if' condition into a rule.
-
-    Args:
-        manipulator: The dictionary representing the Karabiner rule.
-        app_id: The Bundle ID regex of the target application.
     """
     if not app_id:
         return
@@ -67,11 +63,6 @@ def add_app_restriction(manipulator: Dict[str, Any], app_id: Optional[str]) -> N
 def add_layer_condition(manipulator: Dict[str, Any], layer_name: str, value: int = 1) -> None:
     """
     Injects a 'variable_if' condition into a rule to check if a modifier layer is active.
-
-    Args:
-        manipulator: The dictionary representing the Karabiner rule.
-        layer_name: The name of the variable to check.
-        value: The value the variable must match (default 1).
     """
     layer_condition = {
         "type": "variable_if",
@@ -88,16 +79,8 @@ def _create_basic_manipulator(from_button: str, vendor_id: int, product_id: int)
     """
     Generates the skeleton of a Karabiner manipulator with hardware enforcement.
     Automatically detects if the input is a Mouse Button (starts with 'button') or a Key Code.
-
-    Args:
-        from_button: The physical button ID (e.g., 'button3' or '1').
-        vendor_id: The target USB Vendor ID.
-        product_id: The target USB Product ID.
-
-    Returns:
-        A dictionary containing the 'type', 'from', and 'conditions' keys.
     """
-    # Determine if input is a Pointing Button or a Key Code
+    # Smart Detection: Button vs Key
     if from_button.startswith("button"):
         from_event = {"pointing_button": from_button}
     else:
@@ -120,12 +103,6 @@ def _create_basic_manipulator(from_button: str, vendor_id: int, product_id: int)
 def _convert_action_to_json(action: Action) -> Dict[str, Any]:
     """
     Serializes an Action object into a Karabiner 'to' event.
-
-    Args:
-        action: The Action object to convert.
-
-    Returns:
-        A dictionary compatible with Karabiner's 'to' array.
     """
     if action.shell_command:
         return {"shell_command": action.shell_command}
@@ -138,14 +115,6 @@ def _convert_action_to_json(action: Action) -> Dict[str, Any]:
 def compile_click_rule(config: ButtonConfig, vendor_id: int, product_id: int) -> Dict[str, Any]:
     """
     Compiles a Standard Click rule.
-
-    Args:
-        config: The button configuration.
-        vendor_id: The target USB Vendor ID.
-        product_id: The target USB Product ID.
-
-    Returns:
-        A complete Karabiner manipulator dictionary.
     """
     rule = _create_basic_manipulator(config.button_id, vendor_id, product_id)
     rule["to"] = [_convert_action_to_json(config.tap_action)]
@@ -154,22 +123,13 @@ def compile_click_rule(config: ButtonConfig, vendor_id: int, product_id: int) ->
 def compile_modifier_rule(config: ButtonConfig, vendor_id: int, product_id: int) -> Dict[str, Any]:
     """
     Compiles a Pure Modifier rule (active only while held).
-
-    Args:
-        config: The button configuration.
-        vendor_id: The target USB Vendor ID.
-        product_id: The target USB Product ID.
-
-    Returns:
-        A complete Karabiner manipulator dictionary.
     """
     rule = _create_basic_manipulator(config.button_id, vendor_id, product_id)
 
-    # Set variable to 1 on Key Down, 0 on Key Up
     rule["to"] = [{"set_variable": {"name": config.layer_variable, "value": 1}}]
     rule["to_after_key_up"] = [{"set_variable": {"name": config.layer_variable, "value": 0}}]
 
-    # If using a mouse button as modifier, preserve its original click if tapped alone
+    # Preserve original click if tapped alone (for mouse buttons)
     if config.button_id.startswith("button"):
         rule["to_if_alone"] = [{"pointing_button": config.button_id}]
         rule["parameters"] = {"basic.to_if_alone_timeout_milliseconds": config.threshold_ms}
@@ -179,14 +139,6 @@ def compile_modifier_rule(config: ButtonConfig, vendor_id: int, product_id: int)
 def compile_dual_rule(config: ButtonConfig, vendor_id: int, product_id: int) -> Dict[str, Any]:
     """
     Compiles a Dual Role rule (Tap for Action, Hold for Layer).
-
-    Args:
-        config: The button configuration.
-        vendor_id: The target USB Vendor ID.
-        product_id: The target USB Product ID.
-
-    Returns:
-        A complete Karabiner manipulator dictionary.
     """
     rule = _create_basic_manipulator(config.button_id, vendor_id, product_id)
 
@@ -200,14 +152,6 @@ def compile_dual_rule(config: ButtonConfig, vendor_id: int, product_id: int) -> 
 def compile_rule(config: ButtonConfig, vendor_id: int, product_id: int) -> Dict[str, Any]:
     """
     The Main Dispatcher.
-
-    Args:
-        config: The high-level button configuration.
-        vendor_id: The specific USB Vendor ID to target.
-        product_id: The specific USB Product ID to target.
-
-    Returns:
-        A complete Karabiner manipulator dictionary.
     """
     if config.behavior == ButtonBehavior.CLICK:
         if not config.tap_action:
