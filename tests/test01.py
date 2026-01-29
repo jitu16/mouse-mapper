@@ -8,94 +8,96 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from src.core import (
     compile_rule,
     compile_scroll_rule,
+    add_app_restriction,
     ButtonConfig,
     ButtonBehavior,
     Action
 )
 
-# --- HARDWARE CONSTANTS ---
-# We hardcode the IDs here to strictly target your specific device.
-VERBATIM_VENDOR_ID = 0x68e
-VERBATIM_PRODUCT_ID = 0xb5
+# --- CONSTANTS ---
+VID = 0x68e
+PID = 0xb5
+CHROME_ID = "^com\\.google\\.Chrome$"
 
-def generate_scroll_profile():
-    """
-    Generates a complete Karabiner profile for the Verbatim mouse.
-
-    Features tested:
-    1. Button 1 (Dual Role): Tap for '1', Hold for 'gesture_mode'.
-    2. Scroll Up (Layered): Emulates 'Control + Left Arrow' (Move Space Left).
-    3. Scroll Down (Layered): Emulates 'Control + Right Arrow' (Move Space Right).
-    """
-    print(f"Generating Scroll Profile for Device: {hex(VERBATIM_VENDOR_ID)} / {hex(VERBATIM_PRODUCT_ID)}")
+def generate_full_test():
+    print(f"Building Full Profile for Verbatim (0x68e/0xb5)...")
 
     rules = []
 
-    # -------------------------------------------------------------------------
-    # 1. DEFINE THE TRIGGER (Physical Button 1)
-    # -------------------------------------------------------------------------
-    # This button activates the 'gesture_mode' variable when held.
-    trigger_btn = ButtonConfig(
+    # ==============================================================================
+    # 1. BUTTON 1: Mission Control + Desktop Swipe
+    # ==============================================================================
+
+    # Rule A: The Button Logic
+    # FIXED: Tap Action is now 'mission_control', not '1'
+    btn1 = ButtonConfig(
         button_id="1",
         behavior=ButtonBehavior.DUAL,
-        tap_action=Action(key_code="1"),
-        layer_variable="gesture_mode",
+        tap_action=Action(key_code="mission_control"),
+        layer_variable="mode_desktop",
+        threshold_ms=200
+    )
+    rules.append(compile_rule(btn1, VID, PID))
+
+    # Rule B: Scroll Up -> Move Space Left (Ctrl + Left Arrow)
+    rules.append(compile_scroll_rule(
+        vendor_id=VID, product_id=PID,
+        layer_name="mode_desktop",
+        scroll_direction="up",
+        target_action=Action(key_code="left_arrow", modifiers=["left_control"])
+    ))
+
+    # Rule C: Scroll Down -> Move Space Right (Ctrl + Right Arrow)
+    rules.append(compile_scroll_rule(
+        vendor_id=VID, product_id=PID,
+        layer_name="mode_desktop",
+        scroll_direction="down",
+        target_action=Action(key_code="right_arrow", modifiers=["left_control"])
+    ))
+
+    # ==============================================================================
+    # 2. BUTTON 2: Chrome Close Tab + History Nav
+    # ==============================================================================
+
+    # Rule D: The Button Logic (Chrome Only)
+    # Tap -> Cmd+W (Close Tab)
+    btn2 = ButtonConfig(
+        button_id="2",
+        behavior=ButtonBehavior.DUAL,
+        tap_action=Action(key_code="w", modifiers=["left_command"]),
+        layer_variable="mode_chrome",
         threshold_ms=200
     )
 
-    # Compile the trigger rule using the Core
-    rules.append(compile_rule(trigger_btn, VERBATIM_VENDOR_ID, VERBATIM_PRODUCT_ID))
+    # Compile AND Apply App Restriction
+    rule_btn2 = compile_rule(btn2, VID, PID)
+    add_app_restriction(rule_btn2, CHROME_ID)
+    rules.append(rule_btn2)
 
-    # -------------------------------------------------------------------------
-    # 2. DEFINE SCROLL UP BEHAVIOR
-    # -------------------------------------------------------------------------
-    # Logic: When 'gesture_mode' is 1 AND User Scrolls UP -> Switch Desktop Left
-    action_scroll_up = Action(
-        key_code="left_arrow",
-        modifiers=["left_control"]
-    )
-
-    rule_scroll_up = compile_scroll_rule(
-        vendor_id=VERBATIM_VENDOR_ID,
-        product_id=VERBATIM_PRODUCT_ID,
-        layer_name="gesture_mode",
+    # Rule E: Scroll Up -> History Back (Cmd + Left Arrow)
+    scroll_back = compile_scroll_rule(
+        vendor_id=VID, product_id=PID,
+        layer_name="mode_chrome",
         scroll_direction="up",
-        target_action=action_scroll_up
+        target_action=Action(key_code="left_arrow", modifiers=["left_command"])
     )
-    rules.append(rule_scroll_up)
+    add_app_restriction(scroll_back, CHROME_ID)
+    rules.append(scroll_back)
 
-    # -------------------------------------------------------------------------
-    # 3. DEFINE SCROLL DOWN BEHAVIOR
-    # -------------------------------------------------------------------------
-    # Logic: When 'gesture_mode' is 1 AND User Scrolls DOWN -> Switch Desktop Right
-    action_scroll_down = Action(
-        key_code="right_arrow",
-        modifiers=["left_control"]
-    )
-
-    rule_scroll_down = compile_scroll_rule(
-        vendor_id=VERBATIM_VENDOR_ID,
-        product_id=VERBATIM_PRODUCT_ID,
-        layer_name="gesture_mode",
+    # Rule F: Scroll Down -> History Forward (Cmd + Right Arrow)
+    scroll_fwd = compile_scroll_rule(
+        vendor_id=VID, product_id=PID,
+        layer_name="mode_chrome",
         scroll_direction="down",
-        target_action=action_scroll_down
+        target_action=Action(key_code="right_arrow", modifiers=["left_command"])
     )
-    rules.append(rule_scroll_down)
+    add_app_restriction(scroll_fwd, CHROME_ID)
+    rules.append(scroll_fwd)
 
-    # -------------------------------------------------------------------------
-    # OUTPUT GENERATION
-    # -------------------------------------------------------------------------
-    final_profile = {
-        "title": "MouseMapper: Scroll Gesture Test",
-        "rules": [
-            {
-                "description": "Generated by test_scroll_implementation.py",
-                "manipulators": rules
-            }
-        ]
-    }
-
-    print(json.dumps(final_profile, indent=2))
+    # ==============================================================================
+    # OUTPUT
+    # ==============================================================================
+    print(json.dumps({"title": "MouseMapper Full Test", "rules": [{"description": "Full Feature Set", "manipulators": rules}]}, indent=2))
 
 if __name__ == "__main__":
-    generate_scroll_profile()
+    generate_full_test()
