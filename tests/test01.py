@@ -2,102 +2,107 @@ import sys
 import os
 import json
 
-# Add parent directory to path to allow importing from src
+# Add parent directory to path to import src
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.core import (
     compile_rule,
-    compile_scroll_rule,
     add_app_restriction,
+    add_layer_condition,
     ButtonConfig,
     ButtonBehavior,
     Action
 )
 
-# --- CONSTANTS ---
-VID = 0x68e
-PID = 0xb5
-CHROME_ID = "^com\\.google\\.Chrome$"
+# --- CONFIGURATION ---
+VID = 1678  # 0x68e
+PID = 181   # 0xb5
+LAYER_NAME = "naga_nav_mode"
 
-def generate_full_test():
-    print(f"Building Full Profile for Verbatim (0x68e/0xb5)...")
+def generate_master_json():
+    print(f"🔨 Recreating 'Naga Master' Profile for Device {VID}/{PID}...")
 
     rules = []
 
-    # ==============================================================================
-    # 1. BUTTON 1: Mission Control + Desktop Swipe
-    # ==============================================================================
+    # ==========================================================================
+    # 1. THE MODIFIER: Scroll Wheel Click (Button 3)
+    # ==========================================================================
+    # Behavior: Hold to enable 'naga_nav_mode'. Tap to Middle Click (preserved).
+    mod_btn = ButtonConfig(
+        button_id="button3",
+        behavior=ButtonBehavior.MODIFIER,
+        layer_variable=LAYER_NAME,
+        threshold_ms=200
+    )
+    rules.append(compile_rule(mod_btn, VID, PID))
 
-    # Rule A: The Button Logic
-    # FIXED: Tap Action is now 'mission_control', not '1'
-    btn1 = ButtonConfig(
+    # ==========================================================================
+    # 2. LAYER ACTIONS: What happens when Modifier is HELD?
+    # ==========================================================================
+
+    # Action A: Hold Modifier + Press '1' -> Left Arrow (Move Space Left)
+    layer_action_1 = ButtonConfig(
         button_id="1",
-        behavior=ButtonBehavior.DUAL,
-        tap_action=Action(key_code="mission_control"),
-        layer_variable="mode_desktop",
-        threshold_ms=200
+        behavior=ButtonBehavior.CLICK,
+        tap_action=Action(key_code="left_arrow", modifiers=["left_control"])
     )
-    rules.append(compile_rule(btn1, VID, PID))
+    rule_layer_1 = compile_rule(layer_action_1, VID, PID)
 
-    # Rule B: Scroll Up -> Move Space Left (Ctrl + Left Arrow)
-    rules.append(compile_scroll_rule(
-        vendor_id=VID, product_id=PID,
-        layer_name="mode_desktop",
-        scroll_direction="up",
-        target_action=Action(key_code="left_arrow", modifiers=["left_control"])
-    ))
+    # INJECT the Layer Condition (Must hold button3)
+    add_layer_condition(rule_layer_1, LAYER_NAME, 1)
 
-    # Rule C: Scroll Down -> Move Space Right (Ctrl + Right Arrow)
-    rules.append(compile_scroll_rule(
-        vendor_id=VID, product_id=PID,
-        layer_name="mode_desktop",
-        scroll_direction="down",
-        target_action=Action(key_code="right_arrow", modifiers=["left_control"])
-    ))
+    # OPTIONAL: Allow other modifiers (like holding Command) while doing this
+    rule_layer_1["from"]["modifiers"] = {"optional": ["any"]}
 
-    # ==============================================================================
-    # 2. BUTTON 2: Chrome Close Tab + History Nav
-    # ==============================================================================
+    rules.append(rule_layer_1)
 
-    # Rule D: The Button Logic (Chrome Only)
-    # Tap -> Cmd+W (Close Tab)
-    btn2 = ButtonConfig(
+    # Action B: Hold Modifier + Press '2' -> Right Arrow (Move Space Right)
+    layer_action_2 = ButtonConfig(
         button_id="2",
-        behavior=ButtonBehavior.DUAL,
-        tap_action=Action(key_code="w", modifiers=["left_command"]),
-        layer_variable="mode_chrome",
-        threshold_ms=200
+        behavior=ButtonBehavior.CLICK,
+        tap_action=Action(key_code="right_arrow", modifiers=["left_control"])
     )
+    rule_layer_2 = compile_rule(layer_action_2, VID, PID)
+    add_layer_condition(rule_layer_2, LAYER_NAME, 1)
+    rule_layer_2["from"]["modifiers"] = {"optional": ["any"]}
+    rules.append(rule_layer_2)
 
-    # Compile AND Apply App Restriction
-    rule_btn2 = compile_rule(btn2, VID, PID)
-    add_app_restriction(rule_btn2, CHROME_ID)
-    rules.append(rule_btn2)
+    # ==========================================================================
+    # 3. DEFAULT ACTIONS: What happens normally?
+    # ==========================================================================
 
-    # Rule E: Scroll Up -> History Back (Cmd + Left Arrow)
-    scroll_back = compile_scroll_rule(
-        vendor_id=VID, product_id=PID,
-        layer_name="mode_chrome",
-        scroll_direction="up",
-        target_action=Action(key_code="left_arrow", modifiers=["left_command"])
+    # Action C: Tap '1' -> Mission Control
+    default_1 = ButtonConfig(
+        button_id="1",
+        behavior=ButtonBehavior.CLICK,
+        tap_action=Action(key_code="mission_control")
     )
-    add_app_restriction(scroll_back, CHROME_ID)
-    rules.append(scroll_back)
+    rules.append(compile_rule(default_1, VID, PID))
 
-    # Rule F: Scroll Down -> History Forward (Cmd + Right Arrow)
-    scroll_fwd = compile_scroll_rule(
-        vendor_id=VID, product_id=PID,
-        layer_name="mode_chrome",
-        scroll_direction="down",
-        target_action=Action(key_code="right_arrow", modifiers=["left_command"])
+    # Action D: Tap '2' -> Close Tab (Chrome Only)
+    default_2 = ButtonConfig(
+        button_id="2",
+        behavior=ButtonBehavior.CLICK,
+        tap_action=Action(key_code="w", modifiers=["left_command"])
     )
-    add_app_restriction(scroll_fwd, CHROME_ID)
-    rules.append(scroll_fwd)
+    rule_default_2 = compile_rule(default_2, VID, PID)
+    add_app_restriction(rule_default_2, "^com\\.google\\.Chrome$")
+    rules.append(rule_default_2)
 
-    # ==============================================================================
+    # ==========================================================================
     # OUTPUT
-    # ==============================================================================
-    print(json.dumps({"title": "MouseMapper Full Test", "rules": [{"description": "Full Feature Set", "manipulators": rules}]}, indent=2))
+    # ==========================================================================
+    final_json = {
+        "title": "MouseMapper: Naga Master Profile (Generated)",
+        "rules": [
+            {
+                "description": "Generated via src/core.py",
+                "manipulators": rules
+            }
+        ]
+    }
+
+    print(json.dumps(final_json, indent=2))
 
 if __name__ == "__main__":
-    generate_full_test()
+    generate_master_json()
