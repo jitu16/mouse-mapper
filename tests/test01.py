@@ -27,7 +27,6 @@ def generate_master_json():
     # ==========================================================================
     # 1. THE MODIFIER: Scroll Wheel Click (Button 3)
     # ==========================================================================
-    # Behavior: Hold to enable 'naga_nav_mode'. Tap to Middle Click (preserved).
     mod_btn = ButtonConfig(
         button_id="button3",
         behavior=ButtonBehavior.MODIFIER,
@@ -37,10 +36,10 @@ def generate_master_json():
     manipulators.append(compile_rule(mod_btn, VID, PID))
 
     # ==========================================================================
-    # 2. LAYER ACTIONS: What happens when Modifier is HELD?
+    # 2. LAYER ACTIONS (Held Modifier)
     # ==========================================================================
 
-    # Action A: Hold Modifier + Press '1' -> Left Arrow (Move Space Left)
+    # Action A: Hold Modifier + Press '1' -> Left Arrow
     layer_action_1 = ButtonConfig(
         button_id="1",
         behavior=ButtonBehavior.CLICK,
@@ -48,11 +47,10 @@ def generate_master_json():
     )
     rule_layer_1 = compile_rule(layer_action_1, VID, PID)
     add_layer_condition(rule_layer_1, LAYER_NAME, 1)
-    # Optional: Allow other modifiers (like holding Command) while doing this
     rule_layer_1["from"]["modifiers"] = {"optional": ["any"]}
     manipulators.append(rule_layer_1)
 
-    # Action B: Hold Modifier + Press '2' -> Right Arrow (Move Space Right)
+    # Action B: Hold Modifier + Press '2' -> Right Arrow
     layer_action_2 = ButtonConfig(
         button_id="2",
         behavior=ButtonBehavior.CLICK,
@@ -64,7 +62,7 @@ def generate_master_json():
     manipulators.append(rule_layer_2)
 
     # ==========================================================================
-    # 3. DEFAULT ACTIONS: What happens normally?
+    # 3. DEFAULT ACTIONS (Tap Only)
     # ==========================================================================
 
     # Action C: Tap '1' -> Mission Control
@@ -86,13 +84,17 @@ def generate_master_json():
     manipulators.append(rule_default_2)
 
     # ==========================================================================
-    # OUTPUT (FIXED FORMAT)
+    # OUTPUT (FIXED FOR MENU)
     # ==========================================================================
-    # Outputting a single Rule Object (Description + Manipulators)
-    # This structure can be pasted directly into the "rules" array.
+    # We wrap the manipulators in a Rule, and the Rule in a Profile.
     final_json = {
-        "description": "MouseMapper: Naga Master Profile (Generated)",
-        "manipulators": manipulators
+        "title": "MouseMapper: Naga Master Profile",
+        "rules": [
+            {
+                "description": "Master Settings (Generated)",
+                "manipulators": manipulators
+            }
+        ]
     }
 
     print(json.dumps(final_json, indent=2))
