@@ -6,10 +6,10 @@ class ButtonBehavior(Enum):
     """
     Defines the interaction archetypes for button configuration.
     """
-    CLICK = "click"           # Standard single-action button
-    MODIFIER = "modifier"     # Active only while held (Shift-style)
-    TOGGLE = "toggle"         # Tap to activate, Tap to deactivate (Caps-style)
-    DUAL = "dual"             # Tap for Action A, Hold for Modifier Layer
+    CLICK = "click"
+    MODIFIER = "modifier"
+    TOGGLE = "toggle"
+    DUAL = "dual"
 
 @dataclass
 class Action:
@@ -36,12 +36,14 @@ class ButtonConfig:
         tap_action: The action to execute on a standard click (required for CLICK and DUAL).
         layer_variable: The name of the variable to manipulate (required for MODIFIER, TOGGLE, DUAL).
         threshold_ms: Time in milliseconds to distinguish tap from hold (required for DUAL).
+        required_modifiers: A list of modifiers that must be held for this rule to trigger.
     """
     button_id: str
     behavior: ButtonBehavior
     tap_action: Optional[Action] = None
     layer_variable: Optional[str] = None
     threshold_ms: int = 200
+    required_modifiers: List[str] = field(default_factory=list)
 
 def add_app_restriction(manipulator: Dict[str, Any], app_id: Optional[str]) -> None:
     """
@@ -75,16 +77,20 @@ def add_layer_condition(manipulator: Dict[str, Any], layer_name: str, value: int
 
     manipulator["conditions"].append(layer_condition)
 
-def _create_basic_manipulator(from_button: str, vendor_id: int, product_id: int) -> Dict[str, Any]:
+def _create_basic_manipulator(from_button: str, vendor_id: int, product_id: int, required_modifiers: Optional[List[str]] = None) -> Dict[str, Any]:
     """
     Generates the skeleton of a Karabiner manipulator with hardware enforcement.
     Automatically detects if the input is a Mouse Button (starts with 'button') or a Key Code.
     """
-    # Smart Detection: Button vs Key
+    from_event: Dict[str, Any] = {}
+
     if from_button.startswith("button"):
-        from_event = {"pointing_button": from_button}
+        from_event["pointing_button"] = from_button
     else:
-        from_event = {"key_code": from_button}
+        from_event["key_code"] = from_button
+
+    if required_modifiers:
+        from_event["modifiers"] = {"mandatory": required_modifiers}
 
     return {
         "type": "basic",
@@ -107,7 +113,8 @@ def _convert_action_to_json(action: Action) -> Dict[str, Any]:
     if action.shell_command:
         return {"shell_command": action.shell_command}
 
-    payload = {"key_code": action.key_code}
+    payload: Dict[str, Any] = {"key_code": action.key_code}
+
     if action.modifiers:
         payload["modifiers"] = action.modifiers
     return payload
@@ -116,7 +123,10 @@ def compile_click_rule(config: ButtonConfig, vendor_id: int, product_id: int) ->
     """
     Compiles a Standard Click rule.
     """
-    rule = _create_basic_manipulator(config.button_id, vendor_id, product_id)
+    if config.tap_action is None:
+        raise ValueError(f"Button {config.button_id} (CLICK) missing tap_action.")
+
+    rule = _create_basic_manipulator(config.button_id, vendor_id, product_id, config.required_modifiers)
     rule["to"] = [_convert_action_to_json(config.tap_action)]
     return rule
 
@@ -124,12 +134,14 @@ def compile_modifier_rule(config: ButtonConfig, vendor_id: int, product_id: int)
     """
     Compiles a Pure Modifier rule (active only while held).
     """
-    rule = _create_basic_manipulator(config.button_id, vendor_id, product_id)
+    if config.layer_variable is None:
+        raise ValueError(f"Button {config.button_id} (MODIFIER) missing layer_variable.")
+
+    rule = _create_basic_manipulator(config.button_id, vendor_id, product_id, config.required_modifiers)
 
     rule["to"] = [{"set_variable": {"name": config.layer_variable, "value": 1}}]
     rule["to_after_key_up"] = [{"set_variable": {"name": config.layer_variable, "value": 0}}]
 
-    # Preserve original click if tapped alone (for mouse buttons)
     if config.button_id.startswith("button"):
         rule["to_if_alone"] = [{"pointing_button": config.button_id}]
         rule["parameters"] = {"basic.to_if_alone_timeout_milliseconds": config.threshold_ms}
@@ -140,7 +152,10 @@ def compile_dual_rule(config: ButtonConfig, vendor_id: int, product_id: int) -> 
     """
     Compiles a Dual Role rule (Tap for Action, Hold for Layer).
     """
-    rule = _create_basic_manipulator(config.button_id, vendor_id, product_id)
+    if config.tap_action is None or config.layer_variable is None:
+        raise ValueError(f"Button {config.button_id} (DUAL) missing tap_action or layer_variable.")
+
+    rule = _create_basic_manipulator(config.button_id, vendor_id, product_id, config.required_modifiers)
 
     rule["to"] = [{"set_variable": {"name": config.layer_variable, "value": 1}}]
     rule["to_after_key_up"] = [{"set_variable": {"name": config.layer_variable, "value": 0}}]
@@ -154,18 +169,12 @@ def compile_rule(config: ButtonConfig, vendor_id: int, product_id: int) -> Dict[
     The Main Dispatcher.
     """
     if config.behavior == ButtonBehavior.CLICK:
-        if not config.tap_action:
-            raise ValueError(f"Button {config.button_id} (CLICK) missing tap_action.")
         return compile_click_rule(config, vendor_id, product_id)
 
     elif config.behavior == ButtonBehavior.MODIFIER:
-        if not config.layer_variable:
-            raise ValueError(f"Button {config.button_id} (MODIFIER) missing layer_variable.")
         return compile_modifier_rule(config, vendor_id, product_id)
 
     elif config.behavior == ButtonBehavior.DUAL:
-        if not config.tap_action or not config.layer_variable:
-            raise ValueError(f"Button {config.button_id} (DUAL) missing tap_action or layer_variable.")
         return compile_dual_rule(config, vendor_id, product_id)
 
     return {}
