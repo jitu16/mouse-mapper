@@ -62,13 +62,13 @@ def _add_app_condition(manipulator: Dict[str, Any], app_id: Optional[str]) -> No
 
     manipulator["conditions"].append(app_condition)
 
-def _create_basic_manipulator(from_button: str, vendor_id: int) -> Dict[str, Any]:
+def _create_basic_manipulator(from_button: str, vendor_id: int,  product_id: int) -> Dict[str, Any]:
     """
     Generates the skeleton of a Karabiner manipulator with hardware enforcement.
 
     Args:
         from_button: The physical button ID to listen for.
-        vendor_id: The hardware ID to restrict this rule to.
+        vendor_id & product_id: The hardware ID to restrict this rule to.
 
     Returns:
         A dictionary containing the 'type', 'from', and 'conditions' keys.
@@ -79,7 +79,10 @@ def _create_basic_manipulator(from_button: str, vendor_id: int) -> Dict[str, Any
         "conditions": [
             {
                 "type": "device_if",
-                "identifiers": [{"vendor_id": vendor_id}]
+                "identifiers": [{
+                    "vendor_id": vendor_id,
+                    "product_id": product_id
+                }]
             }
         ]
     }
@@ -102,22 +105,22 @@ def _convert_action_to_json(action: Action) -> Dict[str, Any]:
         payload["modifiers"] = action.modifiers
     return payload
 
-def compile_click_rule(config: ButtonConfig, vendor_id: int) -> Dict[str, Any]:
+def compile_click_rule(config: ButtonConfig, vendor_id: int, product_id: int) -> Dict[str, Any]:
     """
     Compiles a Standard Click rule.
 
     Args:
         config: The button configuration.
-        vendor_id: The target hardware ID.
+        vendor_id & product_id: The target hardware ID.
 
     Returns:
         A Karabiner manipulator dictionary.
     """
-    rule = _create_basic_manipulator(config.button_id, vendor_id)
+    rule = _create_basic_manipulator(config.button_id, vendor_id, product_id)
     rule["to"] = [_convert_action_to_json(config.tap_action)]
     return rule
 
-def compile_modifier_rule(config: ButtonConfig, vendor_id: int) -> Dict[str, Any]:
+def compile_modifier_rule(config: ButtonConfig, vendor_id: int, product_id: int) -> Dict[str, Any]:
     """
     Compiles a Pure Modifier (Shift-style) rule.
 
@@ -125,17 +128,17 @@ def compile_modifier_rule(config: ButtonConfig, vendor_id: int) -> Dict[str, Any
 
     Args:
         config: The button configuration.
-        vendor_id: The target hardware ID.
+        vendor_id & product_id: The target hardware ID.
 
     Returns:
         A Karabiner manipulator dictionary.
     """
-    rule = _create_basic_manipulator(config.button_id, vendor_id)
+    rule = _create_basic_manipulator(config.button_id, vendor_id, product_id)
     rule["to"] = [{"set_variable": {"name": config.layer_variable, "value": 1}}]
     rule["to_after_key_up"] = [{"set_variable": {"name": config.layer_variable, "value": 0}}]
     return rule
 
-def compile_dual_rule(config: ButtonConfig, vendor_id: int) -> Dict[str, Any]:
+def compile_dual_rule(config: ButtonConfig, vendor_id: int, product_id: int) -> Dict[str, Any]:
     """
     Compiles a Dual Role (Tap vs Hold) rule.
 
@@ -144,12 +147,12 @@ def compile_dual_rule(config: ButtonConfig, vendor_id: int) -> Dict[str, Any]:
 
     Args:
         config: The button configuration.
-        vendor_id: The target hardware ID.
+        vendor_id & product_id: The target hardware ID.
 
     Returns:
         A Karabiner manipulator dictionary.
     """
-    rule = _create_basic_manipulator(config.button_id, vendor_id)
+    rule = _create_basic_manipulator(config.button_id, vendor_id, product_id)
 
     # Hold Behavior (Activate Layer)
     rule["to"] = [{"set_variable": {"name": config.layer_variable, "value": 1}}]
@@ -164,7 +167,7 @@ def compile_dual_rule(config: ButtonConfig, vendor_id: int) -> Dict[str, Any]:
     }
     return rule
 
-def compile_rule(config: ButtonConfig, vendor_id: int) -> Dict[str, Any]:
+def compile_rule(config: ButtonConfig, vendor_id: int, product_id: int) -> Dict[str, Any]:
     """
     The Main Dispatcher.
 
@@ -183,17 +186,17 @@ def compile_rule(config: ButtonConfig, vendor_id: int) -> Dict[str, Any]:
     if config.behavior == ButtonBehavior.CLICK:
         if not config.tap_action:
             raise ValueError(f"Button {config.button_id} is set to CLICK but has no tap_action.")
-        return compile_click_rule(config, vendor_id)
+        return compile_click_rule(config, vendor_id, product_id)
 
     elif config.behavior == ButtonBehavior.MODIFIER:
         if not config.layer_variable:
             raise ValueError(f"Button {config.button_id} is set to MODIFIER but has no layer_variable.")
-        return compile_modifier_rule(config, vendor_id)
+        return compile_modifier_rule(config, vendor_id, product_id)
 
     elif config.behavior == ButtonBehavior.DUAL:
         if not config.tap_action or not config.layer_variable:
             raise ValueError(f"Button {config.button_id} (DUAL) requires both tap_action and layer_variable.")
-        return compile_dual_rule(config, vendor_id)
+        return compile_dual_rule(config, vendor_id, product_id)
 
     elif config.behavior == ButtonBehavior.TOGGLE:
         # Note: Toggle logic usually requires complex conditions dependent on current state.

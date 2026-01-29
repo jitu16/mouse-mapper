@@ -21,7 +21,7 @@ def test_chrome_binding():
 
     # 2. Compile the Base Rule (Device Restricted)
     # We use a dummy Vendor ID (0x1532) for the test
-    rule = compile_rule(chrome_action, vendor_id=0x1532)
+    rule = compile_rule(chrome_action, vendor_id=0x68e, product_id=0xb5)
 
     # 3. Apply the App Restriction (The Magic Step)
     # This Bundle ID regex matches Google Chrome
