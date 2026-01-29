@@ -87,6 +87,57 @@ def _create_basic_manipulator(from_button: str, vendor_id: int,  product_id: int
         ]
     }
 
+def compile_scroll_rule(
+    vendor_id: int,
+    product_id: int,
+    layer_name: str,
+    scroll_direction: str,  # "up" or "down"
+    target_action: Action
+) -> dict:
+    """
+    Constructs a Karabiner manipulator for a Scroll Gesture.
+
+    Input: "When 'layer_name' is active, and user scrolls 'up', do 'target_action'."
+    Output: The complex JSON block required to make that happen.
+    """
+
+    # 1. Translate logical direction to Karabiner's internal values
+    # macOS Natural Scrolling: -1 is physically UP, 1 is physically DOWN
+    wheel_value = -1 if scroll_direction.lower() == "up" else 1
+
+    # 2. Build the "From" event (The Trigger)
+    from_event = {
+        "mouse_key": {"vertical_wheel": wheel_value},
+        "modifiers": {"optional": ["any"]} # Allow scrolling even if other keys are held
+    }
+
+    # 3. Build the "Conditions" (The Gatekeepers)
+    conditions = [
+        # Hardware Lock
+        {
+            "type": "device_if",
+            "identifiers": [{"vendor_id": vendor_id, "product_id": product_id}]
+        },
+        # Layer Lock (The magic switch)
+        {
+            "type": "variable_if",
+            "name": layer_name,
+            "value": 1
+        }
+    ]
+
+    # 4. Build the "To" event (The Result)
+    # Reuse our existing helper to convert Action -> JSON
+    to_event = _convert_action_to_json(target_action)
+
+    # 5. Assemble the Block
+    return {
+        "type": "basic",
+        "from": from_event,
+        "to": [to_event],
+        "conditions": conditions
+    }
+
 def _convert_action_to_json(action: Action) -> Dict[str, Any]:
     """
     Converts an Action dataclass into a Karabiner 'to' event object.
