@@ -43,7 +43,7 @@ class ButtonConfig:
     layer_variable: Optional[str] = None
     threshold_ms: int = 200
 
-def _add_app_condition(manipulator: Dict[str, Any], app_id: Optional[str]) -> None:
+def add_app_restriction(manipulator: Dict[str, Any], app_id: Optional[str]) -> None:
     """
     Injects the 'frontmost_application_if' condition into a rule.
     """
@@ -101,7 +101,6 @@ def compile_scroll_rule(
     Output: The complex JSON block required to make that happen.
     """
 
-    # 1. Translate logical direction to Karabiner's internal values
     # macOS Natural Scrolling: -1 is physically UP, 1 is physically DOWN
     wheel_value = -1 if scroll_direction.lower() == "up" else 1
 
@@ -111,14 +110,11 @@ def compile_scroll_rule(
         "modifiers": {"optional": ["any"]} # Allow scrolling even if other keys are held
     }
 
-    # 3. Build the "Conditions" (The Gatekeepers)
     conditions = [
-        # Hardware Lock
         {
             "type": "device_if",
             "identifiers": [{"vendor_id": vendor_id, "product_id": product_id}]
         },
-        # Layer Lock (The magic switch)
         {
             "type": "variable_if",
             "name": layer_name,
@@ -126,11 +122,7 @@ def compile_scroll_rule(
         }
     ]
 
-    # 4. Build the "To" event (The Result)
-    # Reuse our existing helper to convert Action -> JSON
     to_event = _convert_action_to_json(target_action)
-
-    # 5. Assemble the Block
     return {
         "type": "basic",
         "from": from_event,
