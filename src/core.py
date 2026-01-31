@@ -123,16 +123,16 @@ def _action_to_json(action: Action) -> List[Dict[str, Any]]:
     if action.shell_command:
         return [{"shell_command": action.shell_command}]
 
-    json_events = []
+    json_events: List[Dict[str, Any]] = []
 
-    # Complex Sequence Mode
     if action.events:
         for event in action.events:
             if event.shell_command:
                 json_events.append({"shell_command": event.shell_command})
                 continue
 
-            payload = {"key_code": event.key_code}
+            payload: Dict[str, Any] = {"key_code": event.key_code}
+
             if event.modifiers:
                 payload["modifiers"] = event.modifiers
             if event.hold_down_milliseconds > 0:
@@ -140,7 +140,6 @@ def _action_to_json(action: Action) -> List[Dict[str, Any]]:
             json_events.append(payload)
         return json_events
 
-    # Legacy Simple Mode
     keys = []
     if isinstance(action.key_code, str):
         keys.append(action.key_code)
@@ -148,10 +147,10 @@ def _action_to_json(action: Action) -> List[Dict[str, Any]]:
         keys = action.key_code
 
     for k in keys:
-        payload = {"key_code": k}
+        payload: Dict[str, Any] = {"key_code": k}
+
         if action.modifiers:
             payload["modifiers"] = action.modifiers
-        # Default legacy hold for list macros
         if len(keys) > 1:
              payload["hold_down_milliseconds"] = 20
         json_events.append(payload)
@@ -235,6 +234,9 @@ def compile_dual_rule(config: ButtonConfig, vid: int, pid: int) -> Dict[str, Any
     """
     rule = _create_base_manipulator(config, vid, pid)
 
+    if not config.layer_variable:
+        raise ValueError(f"Button {config.button_id} configured as dual/modifier but missing layer_variable.")
+
     rule["to"] = [{"set_variable": {"name": config.layer_variable, "value": 1}}]
     rule["to_after_key_up"] = [{"set_variable": {"name": config.layer_variable, "value": 0}}]
 
@@ -252,6 +254,9 @@ def compile_virtual_modifier_rule(config: ButtonConfig, vid: int, pid: int) -> D
     Compiles a rule turning a standard key into a virtual modifier variable.
     """
     rule = _create_base_manipulator(config, vid, pid)
+
+    if not config.layer_variable:
+        raise ValueError(f"Button {config.button_id} configured as virtual modifier but missing layer_variable.")
 
     rule["to"] = [{"set_variable": {"name": config.layer_variable, "value": 1}}]
     rule["to_after_key_up"] = [{"set_variable": {"name": config.layer_variable, "value": 0}}]
