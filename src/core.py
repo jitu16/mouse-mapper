@@ -1,202 +1,280 @@
+"""
+Core V3: Karabiner-Elements JSON Generator.
+
+This module provides a functional API and data structures to generate complex
+Karabiner-Elements rules, supporting advanced features such as sequential actions,
+granular timing control, and cross-device hardware modifiers.
+"""
+
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any, Union
 from enum import Enum
 
-class ButtonBehavior(Enum):
+# ==============================================================================
+# DATA STRUCTURES
+# ==============================================================================
+
+@dataclass
+class ActionEvent:
     """
-    Defines the interaction archetypes for button configuration.
+    Represents a single, atomic event within an action sequence.
+
+    Attributes:
+        key_code: The key to press.
+        modifiers: Modifiers applied specific to this event.
+        shell_command: A shell command to execute.
+        hold_down_milliseconds: Duration to hold the key pressed.
     """
-    CLICK = "click"
-    MODIFIER = "modifier"
-    TOGGLE = "toggle"
-    DUAL = "dual"
+    key_code: Optional[str] = None
+    modifiers: List[str] = field(default_factory=list)
+    shell_command: Optional[str] = None
+    hold_down_milliseconds: int = 0
+
 
 @dataclass
 class Action:
     """
-    Represents a command or sequence of commands in macOS.
+    Container for output commands. Supports both simple keystrokes and complex sequences.
 
     Attributes:
-        key_code: Target key(s). Can be a single string (e.g. 'a') or list (e.g. ['a', 'b']).
-        modifiers: Mandatory modifiers applied to ALL keys in the sequence.
-        shell_command: A raw terminal command to execute.
+        key_code: Single key or list of keys (Legacy/Simple mode).
+        modifiers: Modifiers applied globally to the simple key_code list.
+        shell_command: Raw shell command string.
+        events: List of ActionEvents for complex sequences (V3 mode).
     """
     key_code: Optional[Union[str, List[str]]] = None
     modifiers: List[str] = field(default_factory=list)
     shell_command: Optional[str] = None
+    events: List[ActionEvent] = field(default_factory=list)
+
+
+class ButtonBehavior(Enum):
+    """
+    Defines the interaction archetype for the input trigger.
+    """
+    CLICK = "click"           # Standard press.
+    MODIFIER = "modifier"     # Pure modifier (Variable toggle).
+    DUAL = "dual"             # Tap for action, hold for modifier.
+    VIRTUAL = "virtual"       # Converts standard key (e.g., Space) to modifier variable.
+    SIMULTANEOUS = "simultaneous" # Triggered by multiple inputs.
+
 
 @dataclass
 class ButtonConfig:
     """
-    The Input Blueprint: Defines how a physical button should behave.
+    Configuration blueprint for a physical input rule.
 
     Attributes:
-        button_id: The physical button identifier (e.g., 'button3', '1').
-        behavior: The interaction archetype.
-        tap_action: Action for standard click (required for CLICK and DUAL).
-        layer_variable: Variable name for modifiers (required for MODIFIER, TOGGLE, DUAL).
-        threshold_ms: Tap vs Hold threshold.
-        required_modifiers: Modifiers required to trigger this rule.
+        button_id: Input identifier(s). String for single key, List for simultaneous.
+        behavior: Interaction archetype.
+        tap_action: Action to execute on tap (CLICK/DUAL).
+        layer_variable: Variable name to toggle (MODIFIER/DUAL/VIRTUAL).
+        threshold_ms: Input latency for differentiation (to_if_alone_timeout).
+        mandatory_modifiers: Hardware modifiers required to trigger this rule.
+        simultaneous_threshold_ms: Window for simultaneous key detection.
     """
-    button_id: str
+    button_id: Union[str, List[str]]
     behavior: ButtonBehavior
     tap_action: Optional[Action] = None
     layer_variable: Optional[str] = None
     threshold_ms: int = 200
-    required_modifiers: List[str] = field(default_factory=list)
+    mandatory_modifiers: List[str] = field(default_factory=list)
+    simultaneous_threshold_ms: int = 50
+
+
+# ==============================================================================
+# FACTORY FUNCTIONS
+# ==============================================================================
+
+def make_seq(events: List[ActionEvent]) -> Action:
+    """
+    Factory function to create a complex Action sequence.
+    """
+    return Action(events=events)
+
 
 def add_app_restriction(manipulator: Dict[str, Any], app_id: Optional[str]) -> None:
     """
-    Injects the 'frontmost_application_if' condition into a rule.
+    Injects a 'frontmost_application_if' condition into a manipulator.
     """
     if not app_id:
         return
+    condition = {"type": "frontmost_application_if", "bundle_identifiers": [app_id]}
+    manipulator.setdefault("conditions", []).append(condition)
 
-    app_condition = {
-        "type": "frontmost_application_if",
-        "bundle_identifiers": [app_id]
-    }
-
-    if "conditions" not in manipulator:
-        manipulator["conditions"] = []
-
-    manipulator["conditions"].append(app_condition)
 
 def add_layer_condition(manipulator: Dict[str, Any], layer_name: str, value: int = 1) -> None:
     """
-    Injects a 'variable_if' condition into a rule to check if a modifier layer is active.
+    Injects a 'variable_if' condition into a manipulator.
     """
-    layer_condition = {
-        "type": "variable_if",
-        "name": layer_name,
-        "value": value
-    }
+    condition = {"type": "variable_if", "name": layer_name, "value": value}
+    manipulator.setdefault("conditions", []).append(condition)
 
-    if "conditions" not in manipulator:
-        manipulator["conditions"] = []
 
-    manipulator["conditions"].append(layer_condition)
+# ==============================================================================
+# INTERNAL LOGIC
+# ==============================================================================
 
-def _create_basic_manipulator(from_button: str, vendor_id: int, product_id: int, required_modifiers: Optional[List[str]] = None) -> Dict[str, Any]:
-    """
-    Generates the skeleton of a Karabiner manipulator with hardware enforcement.
-    """
-    from_event: Dict[str, Any] = {}
-
-    if from_button.startswith("button"):
-        from_event["pointing_button"] = from_button
-    else:
-        from_event["key_code"] = from_button
-
-    if required_modifiers:
-        from_event["modifiers"] = {"mandatory": required_modifiers}
-
-    return {
-        "type": "basic",
-        "from": from_event,
-        "conditions": [
-            {
-                "type": "device_if",
-                "identifiers": [{
-                    "vendor_id": vendor_id,
-                    "product_id": product_id
-                }]
-            }
-        ]
-    }
-
-def _convert_action_to_json(action: Action) -> List[Dict[str, Any]]:
+def _action_to_json(action: Action) -> List[Dict[str, Any]]:
     """
     Serializes an Action object into a list of Karabiner 'to' events.
-    Supports macros by returning multiple events if key_code is a list.
+    Handles both legacy simple lists and V3 complex sequences.
     """
     if action.shell_command:
         return [{"shell_command": action.shell_command}]
 
-    events = []
-    keys = []
+    json_events = []
 
+    # Complex Sequence Mode
+    if action.events:
+        for event in action.events:
+            if event.shell_command:
+                json_events.append({"shell_command": event.shell_command})
+                continue
+
+            payload = {"key_code": event.key_code}
+            if event.modifiers:
+                payload["modifiers"] = event.modifiers
+            if event.hold_down_milliseconds > 0:
+                payload["hold_down_milliseconds"] = event.hold_down_milliseconds
+            json_events.append(payload)
+        return json_events
+
+    # Legacy Simple Mode
+    keys = []
     if isinstance(action.key_code, str):
         keys.append(action.key_code)
     elif isinstance(action.key_code, list):
         keys = action.key_code
 
     for k in keys:
-        payload: Dict[str, Any] = {"key_code": k}
+        payload = {"key_code": k}
         if action.modifiers:
             payload["modifiers"] = action.modifiers
+        # Default legacy hold for list macros
         if len(keys) > 1:
              payload["hold_down_milliseconds"] = 20
-        events.append(payload)
+        json_events.append(payload)
 
-    return events
+    return json_events
 
-def compile_click_rule(config: ButtonConfig, vendor_id: int, product_id: int) -> Dict[str, Any]:
+
+def _create_from_block(config: ButtonConfig) -> Dict[str, Any]:
     """
-    Compiles a Standard Click rule.
+    Generates the 'from' block, handling Simultaneous inputs and Mandatory Modifiers.
     """
-    if config.tap_action is None:
-        raise ValueError(f"Button {config.button_id} (CLICK) missing tap_action.")
+    from_block = {}
 
-    rule = _create_basic_manipulator(config.button_id, vendor_id, product_id, config.required_modifiers)
-    rule["to"] = _convert_action_to_json(config.tap_action)
+    if config.behavior == ButtonBehavior.SIMULTANEOUS:
+        if not isinstance(config.button_id, list):
+            raise ValueError("Simultaneous behavior requires a list of button_ids")
+
+        simul_events = []
+        for b in config.button_id:
+            if b.startswith("button"):
+                simul_events.append({"pointing_button": b})
+            else:
+                simul_events.append({"key_code": b})
+
+        from_block["simultaneous"] = simul_events
+        from_block["simultaneous_options"] = {
+            "key_down_order": "insensitive",
+            "detect_key_down_uninterruptedly": True
+        }
+    else:
+        if isinstance(config.button_id, str):
+            if config.button_id.startswith("button"):
+                from_block["pointing_button"] = config.button_id
+            else:
+                from_block["key_code"] = config.button_id
+
+    if config.mandatory_modifiers:
+        from_block["modifiers"] = {"mandatory": config.mandatory_modifiers}
+
+    return from_block
+
+
+def _create_base_manipulator(config: ButtonConfig, vid: int, pid: int) -> Dict[str, Any]:
+    """
+    Creates the base dictionary for a Karabiner manipulator.
+    """
+    rule = {
+        "type": "basic",
+        "from": _create_from_block(config),
+    }
+
+    if vid and pid:
+        rule["conditions"] = [
+            {
+                "type": "device_if",
+                "identifiers": [{"vendor_id": vid, "product_id": pid}]
+            }
+        ]
+
     return rule
 
-def compile_modifier_rule(config: ButtonConfig, vendor_id: int, product_id: int) -> Dict[str, Any]:
-    """
-    Compiles a Pure Modifier rule (active only while held).
-    """
-    if config.layer_variable is None:
-        raise ValueError(f"Button {config.button_id} (MODIFIER) missing layer_variable.")
 
-    rule = _create_basic_manipulator(config.button_id, vendor_id, product_id, config.required_modifiers)
+# ==============================================================================
+# COMPILERS
+# ==============================================================================
+
+def compile_click_rule(config: ButtonConfig, vid: int, pid: int) -> Dict[str, Any]:
+    """
+    Compiles a rule for standard click or simultaneous input.
+    """
+    rule = _create_base_manipulator(config, vid, pid)
+    if config.tap_action:
+        rule["to"] = _action_to_json(config.tap_action)
+    return rule
+
+
+def compile_dual_rule(config: ButtonConfig, vid: int, pid: int) -> Dict[str, Any]:
+    """
+    Compiles a dual-role rule (Tap for Action, Hold for Layer Variable).
+    Applies input latency threshold for differentiation.
+    """
+    rule = _create_base_manipulator(config, vid, pid)
 
     rule["to"] = [{"set_variable": {"name": config.layer_variable, "value": 1}}]
     rule["to_after_key_up"] = [{"set_variable": {"name": config.layer_variable, "value": 0}}]
 
-    if config.button_id.startswith("button"):
-        rule["to_if_alone"] = [{"pointing_button": config.button_id}]
-        rule["parameters"] = {"basic.to_if_alone_timeout_milliseconds": config.threshold_ms}
+    if config.tap_action:
+        rule["to_if_alone"] = _action_to_json(config.tap_action)
 
+    rule["parameters"] = {
+        "basic.to_if_alone_timeout_milliseconds": config.threshold_ms
+    }
     return rule
 
-def compile_dual_rule(config: ButtonConfig, vendor_id: int, product_id: int) -> Dict[str, Any]:
-    """
-    Compiles a Dual Role rule (Tap for Action, Hold for Layer).
-    """
-    if config.tap_action is None or config.layer_variable is None:
-        raise ValueError(f"Button {config.button_id} (DUAL) missing tap_action or layer_variable.")
 
-    rule = _create_basic_manipulator(config.button_id, vendor_id, product_id, config.required_modifiers)
+def compile_virtual_modifier_rule(config: ButtonConfig, vid: int, pid: int) -> Dict[str, Any]:
+    """
+    Compiles a rule turning a standard key into a virtual modifier variable.
+    """
+    rule = _create_base_manipulator(config, vid, pid)
 
     rule["to"] = [{"set_variable": {"name": config.layer_variable, "value": 1}}]
     rule["to_after_key_up"] = [{"set_variable": {"name": config.layer_variable, "value": 0}}]
-    rule["to_if_alone"] = _convert_action_to_json(config.tap_action)
-    rule["parameters"] = {"basic.to_if_alone_timeout_milliseconds": config.threshold_ms}
 
+    if config.tap_action:
+        rule["to_if_alone"] = _action_to_json(config.tap_action)
+
+    rule["parameters"] = {
+        "basic.to_if_alone_timeout_milliseconds": config.threshold_ms
+    }
     return rule
 
-def compile_toggle_rule(config: ButtonConfig, vendor_id: int, product_id: int) -> Dict[str, Any]:
-    """
-    Placeholder for Toggle behavior.
-    """
-    print(f"Warning: Toggle behavior for {config.button_id} is not implemented yet.")
-    return {}
 
-def compile_rule(config: ButtonConfig, vendor_id: int, product_id: int) -> Dict[str, Any]:
+def compile_rule(config: ButtonConfig, vid: int = 0, pid: int = 0) -> Dict[str, Any]:
     """
-    The Main Dispatcher.
+    Main dispatch function to compile a ButtonConfig into a Karabiner manipulator.
     """
     if config.behavior == ButtonBehavior.CLICK:
-        return compile_click_rule(config, vendor_id, product_id)
-
-    elif config.behavior == ButtonBehavior.MODIFIER:
-        return compile_modifier_rule(config, vendor_id, product_id)
-
-    elif config.behavior == ButtonBehavior.DUAL:
-        return compile_dual_rule(config, vendor_id, product_id)
-
-    elif config.behavior == ButtonBehavior.TOGGLE:
-        return compile_toggle_rule(config, vendor_id, product_id)
-
+        return compile_click_rule(config, vid, pid)
+    elif config.behavior in [ButtonBehavior.MODIFIER, ButtonBehavior.DUAL]:
+        return compile_dual_rule(config, vid, pid)
+    elif config.behavior == ButtonBehavior.VIRTUAL:
+        return compile_virtual_modifier_rule(config, vid, pid)
+    elif config.behavior == ButtonBehavior.SIMULTANEOUS:
+        return compile_click_rule(config, vid, pid)
     return {}
