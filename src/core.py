@@ -2,8 +2,7 @@
 Core V3: Karabiner-Elements JSON Generator.
 
 This module provides a functional API and data structures to generate complex
-Karabiner-Elements rules, supporting advanced features such as sequential actions,
-granular timing control, and cross-device hardware modifiers.
+Karabiner-Elements rules.
 """
 
 from dataclasses import dataclass, field
@@ -20,10 +19,10 @@ class ActionEvent:
     Represents a single, atomic event within an action sequence.
 
     Attributes:
-        key_code: The key to press.
-        modifiers: Modifiers applied specific to this event.
-        shell_command: A shell command to execute.
-        hold_down_milliseconds: Duration to hold the key pressed.
+        key_code: The key or button identifier (e.g., 'a', 'left_command', 'button1').
+        modifiers: List of modifier keys to hold during this event.
+        shell_command: A raw shell command to execute.
+        hold_down_milliseconds: Duration to hold the input.
     """
     key_code: Optional[str] = None
     modifiers: List[str] = field(default_factory=list)
@@ -34,13 +33,13 @@ class ActionEvent:
 @dataclass
 class Action:
     """
-    Container for output commands. Supports both simple keystrokes and complex sequences.
+    Container for output commands.
 
     Attributes:
-        key_code: Single key or list of keys (Legacy/Simple mode).
-        modifiers: Modifiers applied globally to the simple key_code list.
+        key_code: Single key/button string or list of strings (Simple Mode).
+        modifiers: Modifiers applied globally to the key_code inputs.
         shell_command: Raw shell command string.
-        events: List of ActionEvents for complex sequences (V3 mode).
+        events: List of ActionEvents for complex sequences (Complex Mode).
     """
     key_code: Optional[Union[str, List[str]]] = None
     modifiers: List[str] = field(default_factory=list)
@@ -50,13 +49,13 @@ class Action:
 
 class ButtonBehavior(Enum):
     """
-    Defines the interaction archetype for the input trigger.
+    Enumeration of interaction archetypes.
     """
-    CLICK = "click"           # Standard press.
-    MODIFIER = "modifier"     # Pure modifier (Variable toggle).
-    DUAL = "dual"             # Tap for action, hold for modifier.
-    VIRTUAL = "virtual"       # Converts standard key (e.g., Space) to modifier variable.
-    SIMULTANEOUS = "simultaneous" # Triggered by multiple inputs.
+    CLICK = "click"
+    MODIFIER = "modifier"
+    DUAL = "dual"
+    VIRTUAL = "virtual"
+    SIMULTANEOUS = "simultaneous"
 
 
 @dataclass
@@ -65,13 +64,13 @@ class ButtonConfig:
     Configuration blueprint for a physical input rule.
 
     Attributes:
-        button_id: Input identifier(s). String for single key, List for simultaneous.
-        behavior: Interaction archetype.
-        tap_action: Action to execute on tap (CLICK/DUAL).
-        layer_variable: Variable name to toggle (MODIFIER/DUAL/VIRTUAL).
-        threshold_ms: Input latency for differentiation (to_if_alone_timeout).
+        button_id: Input identifier(s). String for single input, List for simultaneous.
+        behavior: The interaction archetype (CLICK, DUAL, etc).
+        tap_action: The Action to execute on a tap event.
+        layer_variable: The variable name to toggle for modifier layers.
+        threshold_ms: Input latency threshold for dual-role triggers.
         mandatory_modifiers: Hardware modifiers required to trigger this rule.
-        simultaneous_threshold_ms: Window for simultaneous key detection.
+        simultaneous_threshold_ms: Time window for simultaneous detection.
     """
     button_id: Union[str, List[str]]
     behavior: ButtonBehavior
@@ -89,6 +88,12 @@ class ButtonConfig:
 def make_seq(events: List[ActionEvent]) -> Action:
     """
     Factory function to create a complex Action sequence.
+
+    Args:
+        events: A list of ActionEvent objects.
+
+    Returns:
+        An Action object configured for complex execution.
     """
     return Action(events=events)
 
@@ -96,6 +101,10 @@ def make_seq(events: List[ActionEvent]) -> Action:
 def add_app_restriction(manipulator: Dict[str, Any], app_id: Optional[str]) -> None:
     """
     Injects a 'frontmost_application_if' condition into a manipulator.
+
+    Args:
+        manipulator: The rule dictionary to modify.
+        app_id: The regex string for the application bundle identifier.
     """
     if not app_id:
         return
@@ -106,6 +115,11 @@ def add_app_restriction(manipulator: Dict[str, Any], app_id: Optional[str]) -> N
 def add_layer_condition(manipulator: Dict[str, Any], layer_name: str, value: int = 1) -> None:
     """
     Injects a 'variable_if' condition into a manipulator.
+
+    Args:
+        manipulator: The rule dictionary to modify.
+        layer_name: The name of the variable to check.
+        value: The required value (1 or 0).
     """
     condition = {"type": "variable_if", "name": layer_name, "value": value}
     manipulator.setdefault("conditions", []).append(condition)
@@ -115,10 +129,30 @@ def add_layer_condition(manipulator: Dict[str, Any], layer_name: str, value: int
 # INTERNAL LOGIC
 # ==============================================================================
 
+def _create_event_payload(key_or_btn: str) -> Dict[str, Any]:
+    """
+    Creates the correct JSON payload key based on the input string.
+
+    Args:
+        key_or_btn: The input string (e.g., "return_or_enter" or "button1").
+
+    Returns:
+        A dictionary with either "pointing_button" or "key_code".
+    """
+    if key_or_btn.startswith("button"):
+        return {"pointing_button": key_or_btn}
+    return {"key_code": key_or_btn}
+
+
 def _action_to_json(action: Action) -> List[Dict[str, Any]]:
     """
     Serializes an Action object into a list of Karabiner 'to' events.
-    Handles both legacy simple lists and V3 complex sequences.
+
+    Args:
+        action: The Action object to serialize.
+
+    Returns:
+        A list of dictionaries representing the 'to' block in JSON.
     """
     if action.shell_command:
         return [{"shell_command": action.shell_command}]
@@ -131,7 +165,10 @@ def _action_to_json(action: Action) -> List[Dict[str, Any]]:
                 json_events.append({"shell_command": event.shell_command})
                 continue
 
-            payload: Dict[str, Any] = {"key_code": event.key_code}
+            if not event.key_code:
+                continue
+
+            payload = _create_event_payload(event.key_code)
 
             if event.modifiers:
                 payload["modifiers"] = event.modifiers
@@ -147,7 +184,7 @@ def _action_to_json(action: Action) -> List[Dict[str, Any]]:
         keys = action.key_code
 
     for k in keys:
-        payload: Dict[str, Any] = {"key_code": k}
+        payload = _create_event_payload(k)
 
         if action.modifiers:
             payload["modifiers"] = action.modifiers
@@ -160,7 +197,13 @@ def _action_to_json(action: Action) -> List[Dict[str, Any]]:
 
 def _create_from_block(config: ButtonConfig) -> Dict[str, Any]:
     """
-    Generates the 'from' block, handling Simultaneous inputs and Mandatory Modifiers.
+    Generates the 'from' block for a manipulator.
+
+    Args:
+        config: The ButtonConfig object.
+
+    Returns:
+        A dictionary representing the 'from' block in JSON.
     """
     from_block = {}
 
@@ -195,7 +238,15 @@ def _create_from_block(config: ButtonConfig) -> Dict[str, Any]:
 
 def _create_base_manipulator(config: ButtonConfig, vid: int, pid: int) -> Dict[str, Any]:
     """
-    Creates the base dictionary for a Karabiner manipulator.
+    Creates the base dictionary structure for a Karabiner manipulator.
+
+    Args:
+        config: The ButtonConfig object.
+        vid: The Vendor ID.
+        pid: The Product ID.
+
+    Returns:
+        A dictionary containing 'type', 'from', and 'conditions'.
     """
     rule = {
         "type": "basic",
@@ -220,6 +271,14 @@ def _create_base_manipulator(config: ButtonConfig, vid: int, pid: int) -> Dict[s
 def compile_click_rule(config: ButtonConfig, vid: int, pid: int) -> Dict[str, Any]:
     """
     Compiles a rule for standard click or simultaneous input.
+
+    Args:
+        config: The ButtonConfig object.
+        vid: The Vendor ID.
+        pid: The Product ID.
+
+    Returns:
+        The complete manipulator dictionary.
     """
     rule = _create_base_manipulator(config, vid, pid)
     if config.tap_action:
@@ -230,7 +289,14 @@ def compile_click_rule(config: ButtonConfig, vid: int, pid: int) -> Dict[str, An
 def compile_dual_rule(config: ButtonConfig, vid: int, pid: int) -> Dict[str, Any]:
     """
     Compiles a dual-role rule (Tap for Action, Hold for Layer Variable).
-    Applies input latency threshold for differentiation.
+
+    Args:
+        config: The ButtonConfig object.
+        vid: The Vendor ID.
+        pid: The Product ID.
+
+    Returns:
+        The complete manipulator dictionary.
     """
     rule = _create_base_manipulator(config, vid, pid)
 
@@ -252,6 +318,14 @@ def compile_dual_rule(config: ButtonConfig, vid: int, pid: int) -> Dict[str, Any
 def compile_virtual_modifier_rule(config: ButtonConfig, vid: int, pid: int) -> Dict[str, Any]:
     """
     Compiles a rule turning a standard key into a virtual modifier variable.
+
+    Args:
+        config: The ButtonConfig object.
+        vid: The Vendor ID.
+        pid: The Product ID.
+
+    Returns:
+        The complete manipulator dictionary.
     """
     rule = _create_base_manipulator(config, vid, pid)
 
@@ -273,6 +347,14 @@ def compile_virtual_modifier_rule(config: ButtonConfig, vid: int, pid: int) -> D
 def compile_rule(config: ButtonConfig, vid: int = 0, pid: int = 0) -> Dict[str, Any]:
     """
     Main dispatch function to compile a ButtonConfig into a Karabiner manipulator.
+
+    Args:
+        config: The ButtonConfig object.
+        vid: The Vendor ID.
+        pid: The Product ID.
+
+    Returns:
+        The complete manipulator dictionary.
     """
     if config.behavior == ButtonBehavior.CLICK:
         return compile_click_rule(config, vid, pid)
