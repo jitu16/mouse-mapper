@@ -27,20 +27,15 @@ LAYER_HYPER = "naga_hyper_wheel"
 LAYER_RMB   = "naga_hyper_rmb"
 
 # App Identifiers
-APP_CHROME  = "^com\\.google\\.Chrome$"
-APP_NOTES   = "^com\\.apple\\.Notes$"
-APP_SUBLIME = "^com\\.sublimetext\\.4$"
-APP_EMACS   = "^org\\.gnu\\.Emacs$"
+APP_CHROME  = r"^com\.google\.Chrome$"
+APP_NOTES   = r"^com\.apple\.Notes$"
+APP_SUBLIME = r"^com\.sublimetext\.4$"
+APP_EMACS   = r"^org\.gnu\.Emacs$"
 
 
 def generate_leisure_profile():
     """
     Generates the MouseMapper V3.2 'Emacs Expanded' Profile.
-
-    Philosophy:
-    - Tap: Global actions (Navigation, Media).
-    - RMB+Click: App-specific context tools.
-    - Wheel+Click: System-level window management.
     """
     manipulators = []
 
@@ -55,7 +50,6 @@ def generate_leisure_profile():
     ))
 
     # App-Specific Hyper: Right Click (Button 2)
-    # 150ms timeout for fast differentiation
     r_rmb = compile_rule(
         ButtonConfig("button2", ButtonBehavior.DUAL, tap_action=Action("button2"), layer_variable=LAYER_RMB, threshold_ms=150),
         VID, PID
@@ -78,7 +72,8 @@ def generate_leisure_profile():
     # RMB (Chrome/Notes/Sublime): Tab Left
     r_b1_rmb = compile_rule(ButtonConfig("1", ButtonBehavior.CLICK, Action("open_bracket", ["left_command", "left_shift"])), VID, PID)
     add_layer_condition(r_b1_rmb, LAYER_RMB, 1)
-    add_app_restriction(r_b1_rmb, "^(com\.google\.Chrome|com\.apple\.Notes|com\.sublimetext\.4)$") # Regex OR
+    # Fixed: Added r prefix
+    add_app_restriction(r_b1_rmb, r"^(com\.google\.Chrome|com\.apple\.Notes|com\.sublimetext\.4)$")
     manipulators.append(r_b1_rmb)
 
     # RMB (Emacs): Recent Files (SPC f r)
@@ -132,7 +127,8 @@ def generate_leisure_profile():
     # RMB (Chrome/Notes): Tab Right
     r_b3_rmb = compile_rule(ButtonConfig("3", ButtonBehavior.CLICK, Action("close_bracket", ["left_command", "left_shift"])), VID, PID)
     add_layer_condition(r_b3_rmb, LAYER_RMB, 1)
-    add_app_restriction(r_b3_rmb, "^(com\.google\.Chrome|com\.apple\.Notes|com\.sublimetext\.4)$")
+    # Fixed: Added r prefix
+    add_app_restriction(r_b3_rmb, r"^(com\.google\.Chrome|com\.apple\.Notes|com\.sublimetext\.4)$")
     manipulators.append(r_b3_rmb)
 
     # RMB (Emacs): Find File (SPC f f)
@@ -191,7 +187,8 @@ def generate_leisure_profile():
     # RMB (General): Escape
     r_b5_rmb = compile_rule(ButtonConfig("5", ButtonBehavior.CLICK, Action("escape")), VID, PID)
     add_layer_condition(r_b5_rmb, LAYER_RMB, 1)
-    add_app_restriction(r_b5_rmb, "^(com\.google\.Chrome|com\.apple\.Notes|com\.sublimetext\.4)$")
+    # Fixed: Added r prefix
+    add_app_restriction(r_b5_rmb, r"^(com\.google\.Chrome|com\.apple\.Notes|com\.sublimetext\.4)$")
     manipulators.append(r_b5_rmb)
 
     # RMB (Emacs): Other Window (SPC w w)
@@ -218,7 +215,8 @@ def generate_leisure_profile():
     # RMB (Chrome): Paste & Go
     r_b6_rmb = compile_rule(ButtonConfig("6", ButtonBehavior.CLICK, Action("v", ["left_command", "left_shift"])), VID, PID)
     add_layer_condition(r_b6_rmb, LAYER_RMB, 1)
-    add_app_restriction(r_b6_rmb, "^(com\.google\.Chrome|com\.apple\.Notes|com\.sublimetext\.4)$")
+    # Fixed: Added r prefix
+    add_app_restriction(r_b6_rmb, r"^(com\.google\.Chrome|com\.apple\.Notes|com\.sublimetext\.4)$")
     manipulators.append(r_b6_rmb)
 
     # RMB (Emacs): Commit (c c)
@@ -294,7 +292,8 @@ def generate_leisure_profile():
     # RMB (General): Close Tab
     r_b9_rmb = compile_rule(ButtonConfig("9", ButtonBehavior.CLICK, Action("w", ["left_command"])), VID, PID)
     add_layer_condition(r_b9_rmb, LAYER_RMB, 1)
-    add_app_restriction(r_b9_rmb, "^(com\.google\.Chrome|com\.apple\.Notes|com\.sublimetext\.4)$")
+    # Fixed: Added r prefix
+    add_app_restriction(r_b9_rmb, r"^(com\.google\.Chrome|com\.apple\.Notes|com\.sublimetext\.4)$")
     manipulators.append(r_b9_rmb)
 
     # RMB (Emacs): Quit (SPC q q)
