@@ -264,7 +264,7 @@ def generate_leisure_profile():
     add_app_restriction(r_b7_emacs, APP_EMACS)
     manipulators.append(r_b7_emacs)
 
-    r_b7_chrome = compile_rule(ButtonConfig("7", ButtonBehavior.CLICK, Action("n", ["left_command", "left_shift"])), VID, PID)
+    r_b7_chrome = compile_rule(ButtonConfig("7", ButtonBehavior.CLICK, Action("t", ["left_command"])), VID, PID)
     add_layer_condition(r_b7_chrome, LAYER_RMB, 1)
     add_app_restriction(r_b7_chrome, APP_CHROME)
     manipulators.append(r_b7_chrome)
