@@ -24,8 +24,7 @@ VID = 1678
 PID = 181
 
 LAYER_HYPER = "naga_hyper_wheel"
-LAYER_RMB   = "naga_hyper_rmb" # Button 2 (Context/App Layer)
-LAYER_LMB   = "naga_hyper_lmb" # Button 1 (Media/Seek Layer)
+LAYER_RMB   = "naga_hyper_rmb"
 
 APP_CHROME  = r"^com\.google\.Chrome$"
 APP_NOTES   = r"^com\.apple\.Notes$"
@@ -35,11 +34,11 @@ APP_EMACS   = r"^org\.gnu\.Emacs$"
 
 def generate_leisure_profile():
     """
-    Generates the MouseMapper V3.8 'YouTube Seek' Profile.
+    Generates the MouseMapper V3.9 'Button Seek' Profile.
 
     Structure:
-    1. Layer Triggers (Wheel, RMB=Btn2, LMB=Btn1).
-    2. Layer Actions (Hyper, RMB-Context, LMB-Media).
+    1. Layer Triggers (Wheel, RMB).
+    2. Layer Actions (Hyper, RMB-Context).
     3. Global Actions (Tap defaults).
     """
     manipulators = []
@@ -48,13 +47,13 @@ def generate_leisure_profile():
     # 1. LAYER DEFINITIONS
     # ==========================================================================
 
-    # Hyper: Scroll Wheel (Button 3)
+    # Global Hyper: Scroll Wheel (Button 3)
     manipulators.append(compile_rule(
         ButtonConfig("button3", ButtonBehavior.DUAL, tap_action=Action("button3"), layer_variable=LAYER_HYPER, threshold_ms=200),
         VID, PID
     ))
 
-    # Context Layer: Right Click (Button 2)
+    # App-Specific Hyper: Right Click (Button 2)
     r_rmb = compile_rule(
         ButtonConfig("button2", ButtonBehavior.DUAL, tap_action=Action("button2"), layer_variable=LAYER_RMB, threshold_ms=150),
         VID, PID
@@ -64,17 +63,6 @@ def generate_leisure_profile():
         "bundle_identifiers": [APP_CHROME, APP_NOTES, APP_SUBLIME, APP_EMACS]
     }]
     manipulators.append(r_rmb)
-
-    # Media Layer: Left Click (Button 1) - Chrome Only
-    r_lmb = compile_rule(
-        ButtonConfig("button1", ButtonBehavior.DUAL, tap_action=Action("button1"), layer_variable=LAYER_LMB, threshold_ms=150),
-        VID, PID
-    )
-    r_lmb["conditions"] = [{
-        "type": "frontmost_application_if",
-        "bundle_identifiers": [APP_CHROME]
-    }]
-    manipulators.append(r_lmb)
 
 
     # ==========================================================================
@@ -86,12 +74,6 @@ def generate_leisure_profile():
     r_b1_hyp = compile_rule(ButtonConfig("1", ButtonBehavior.CLICK, Action("1", ["left_option", "left_shift"])), VID, PID)
     add_layer_condition(r_b1_hyp, LAYER_HYPER, 1)
     manipulators.append(r_b1_hyp)
-
-    # NEW: YouTube Seek Backward (LMB + 1)
-    r_b1_seek = compile_rule(ButtonConfig("1", ButtonBehavior.CLICK, Action("left_arrow")), VID, PID)
-    add_layer_condition(r_b1_seek, LAYER_LMB, 1)
-    add_app_restriction(r_b1_seek, APP_CHROME)
-    manipulators.append(r_b1_seek)
 
     r_b1_emacs = compile_rule(ButtonConfig("1", ButtonBehavior.CLICK, make_seq([
         ActionEvent("spacebar"), ActionEvent("f"), ActionEvent("r")
@@ -145,12 +127,6 @@ def generate_leisure_profile():
     add_layer_condition(r_b3_hyp, LAYER_HYPER, 1)
     manipulators.append(r_b3_hyp)
 
-    # NEW: YouTube Seek Forward (LMB + 3)
-    r_b3_seek = compile_rule(ButtonConfig("3", ButtonBehavior.CLICK, Action("right_arrow")), VID, PID)
-    add_layer_condition(r_b3_seek, LAYER_LMB, 1)
-    add_app_restriction(r_b3_seek, APP_CHROME)
-    manipulators.append(r_b3_seek)
-
     r_b3_emacs = compile_rule(ButtonConfig("3", ButtonBehavior.CLICK, make_seq([
         ActionEvent("spacebar"), ActionEvent("f"), ActionEvent("f")
     ])), VID, PID)
@@ -184,7 +160,8 @@ def generate_leisure_profile():
     add_app_restriction(r_b4_emacs, APP_EMACS)
     manipulators.append(r_b4_emacs)
 
-    r_b4_chrome = compile_rule(ButtonConfig("4", ButtonBehavior.CLICK, Action(["l", "c", "escape"], ["left_command"])), VID, PID)
+    # RMB (Chrome): Seek Backward / Rewind (Replaces Copy URL)
+    r_b4_chrome = compile_rule(ButtonConfig("4", ButtonBehavior.CLICK, Action("left_arrow")), VID, PID)
     add_layer_condition(r_b4_chrome, LAYER_RMB, 1)
     add_app_restriction(r_b4_chrome, APP_CHROME)
     manipulators.append(r_b4_chrome)
@@ -239,9 +216,16 @@ def generate_leisure_profile():
     add_app_restriction(r_b6_emacs, APP_EMACS)
     manipulators.append(r_b6_emacs)
 
+    # RMB (Chrome): Seek Forward / Fast Forward
+    r_b6_chrome = compile_rule(ButtonConfig("6", ButtonBehavior.CLICK, Action("right_arrow")), VID, PID)
+    add_layer_condition(r_b6_chrome, LAYER_RMB, 1)
+    add_app_restriction(r_b6_chrome, APP_CHROME)
+    manipulators.append(r_b6_chrome)
+
+    # RMB (Notes/Sublime): Paste & Go / Paste
     r_b6_rmb = compile_rule(ButtonConfig("6", ButtonBehavior.CLICK, Action("v", ["left_command", "left_shift"])), VID, PID)
     add_layer_condition(r_b6_rmb, LAYER_RMB, 1)
-    add_app_restriction(r_b6_rmb, r"^(com\.google\.Chrome|com\.apple\.Notes|com\.sublimetext\.4)$")
+    add_app_restriction(r_b6_rmb, r"^(com\.apple\.Notes|com\.sublimetext\.4)$") # Excluded Chrome
     manipulators.append(r_b6_rmb)
 
     manipulators.append(compile_rule(ButtonConfig("6", ButtonBehavior.CLICK, Action("v", ["left_command"])), VID, PID))
@@ -264,7 +248,7 @@ def generate_leisure_profile():
     add_app_restriction(r_b7_emacs, APP_EMACS)
     manipulators.append(r_b7_emacs)
 
-    r_b7_chrome = compile_rule(ButtonConfig("7", ButtonBehavior.CLICK, Action("t", ["left_command"])), VID, PID)
+    r_b7_chrome = compile_rule(ButtonConfig("7", ButtonBehavior.CLICK, Action("n", ["left_command", "left_shift"])), VID, PID)
     add_layer_condition(r_b7_chrome, LAYER_RMB, 1)
     add_app_restriction(r_b7_chrome, APP_CHROME)
     manipulators.append(r_b7_chrome)
@@ -439,7 +423,7 @@ def generate_leisure_profile():
         "title": "test v3.0",
         "rules": [
             {
-                "description": "MouseMapper V3.8 (YouTube Seek)",
+                "description": "MouseMapper V3.9 (Button Seek)",
                 "manipulators": manipulators
             }
         ]
