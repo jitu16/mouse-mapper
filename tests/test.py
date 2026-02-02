@@ -26,20 +26,15 @@ PID = 181
 LAYER_HYPER = "naga_hyper_wheel"
 LAYER_RMB   = "naga_hyper_rmb"
 
-APP_CHROME  = r"^com\.google\.Chrome$"
-APP_NOTES   = r"^com\.apple\.Notes$"
-APP_SUBLIME = r"^com\.sublimetext\.4$"
-APP_EMACS   = r"^org\.gnu\.Emacs$"
-
+APP_CHROME   = r"^com\.google\.Chrome$"
+APP_NOTES    = r"^com\.apple\.Notes$"
+APP_SUBLIME  = r"^com\.sublimetext\.4$"
+APP_EMACS    = r"^org\.gnu\.Emacs$"
+APP_OBSIDIAN = r"^md\.obsidian$"
 
 def generate_leisure_profile():
     """
-    Generates the MouseMapper V3.9 'Button Seek' Profile.
-
-    Structure:
-    1. Layer Triggers (Wheel, RMB).
-    2. Layer Actions (Hyper, RMB-Context).
-    3. Global Actions (Tap defaults).
+    Generates the MouseMapper V4.2 'Leisure Audit' Profile.
     """
     manipulators = []
 
@@ -53,14 +48,14 @@ def generate_leisure_profile():
         VID, PID
     ))
 
-    # App-Specific Hyper: Right Click (Button 2)
+    # Context Layer: Right Click (Button 2)
     r_rmb = compile_rule(
         ButtonConfig("button2", ButtonBehavior.DUAL, tap_action=Action("button2"), layer_variable=LAYER_RMB, threshold_ms=150),
         VID, PID
     )
     r_rmb["conditions"] = [{
         "type": "frontmost_application_if",
-        "bundle_identifiers": [APP_CHROME, APP_NOTES, APP_SUBLIME, APP_EMACS]
+        "bundle_identifiers": [APP_CHROME, APP_NOTES, APP_SUBLIME, APP_EMACS, APP_OBSIDIAN]
     }]
     manipulators.append(r_rmb)
 
@@ -82,6 +77,13 @@ def generate_leisure_profile():
     add_app_restriction(r_b1_emacs, APP_EMACS)
     manipulators.append(r_b1_emacs)
 
+    # Obsidian: Navigate Back
+    r_b1_obs = compile_rule(ButtonConfig("1", ButtonBehavior.CLICK, Action("open_bracket", ["left_command"])), VID, PID)
+    add_layer_condition(r_b1_obs, LAYER_RMB, 1)
+    add_app_restriction(r_b1_obs, APP_OBSIDIAN)
+    manipulators.append(r_b1_obs)
+
+    # General: Tab Left
     r_b1_rmb = compile_rule(ButtonConfig("1", ButtonBehavior.CLICK, Action("open_bracket", ["left_command", "left_shift"])), VID, PID)
     add_layer_condition(r_b1_rmb, LAYER_RMB, 1)
     add_app_restriction(r_b1_rmb, r"^(com\.google\.Chrome|com\.apple\.Notes|com\.sublimetext\.4)$")
@@ -102,6 +104,12 @@ def generate_leisure_profile():
     add_layer_condition(r_b2_emacs, LAYER_RMB, 1)
     add_app_restriction(r_b2_emacs, APP_EMACS)
     manipulators.append(r_b2_emacs)
+
+    # Obsidian: Toggle Read/Edit Mode
+    r_b2_obs = compile_rule(ButtonConfig("2", ButtonBehavior.CLICK, Action("e", ["left_command"])), VID, PID)
+    add_layer_condition(r_b2_obs, LAYER_RMB, 1)
+    add_app_restriction(r_b2_obs, APP_OBSIDIAN)
+    manipulators.append(r_b2_obs)
 
     r_b2_chrome = compile_rule(ButtonConfig("2", ButtonBehavior.CLICK, Action("t", ["left_command", "left_shift"])), VID, PID)
     add_layer_condition(r_b2_chrome, LAYER_RMB, 1)
@@ -134,6 +142,12 @@ def generate_leisure_profile():
     add_app_restriction(r_b3_emacs, APP_EMACS)
     manipulators.append(r_b3_emacs)
 
+    # Obsidian: Navigate Forward
+    r_b3_obs = compile_rule(ButtonConfig("3", ButtonBehavior.CLICK, Action("close_bracket", ["left_command"])), VID, PID)
+    add_layer_condition(r_b3_obs, LAYER_RMB, 1)
+    add_app_restriction(r_b3_obs, APP_OBSIDIAN)
+    manipulators.append(r_b3_obs)
+
     r_b3_rmb = compile_rule(ButtonConfig("3", ButtonBehavior.CLICK, Action("close_bracket", ["left_command", "left_shift"])), VID, PID)
     add_layer_condition(r_b3_rmb, LAYER_RMB, 1)
     add_app_restriction(r_b3_rmb, r"^(com\.google\.Chrome|com\.apple\.Notes|com\.sublimetext\.4)$")
@@ -146,11 +160,23 @@ def generate_leisure_profile():
     # 3. ROW 2: ACTION & EDITING
     # ==========================================================================
 
-    # --- Button 4: Copy / Pull ---
+    # --- Button 4: Copy / Pull / Seek Back ---
 
     r_b4_hyp = compile_rule(ButtonConfig("4", ButtonBehavior.CLICK, Action("x", ["left_command"])), VID, PID)
     add_layer_condition(r_b4_hyp, LAYER_HYPER, 1)
     manipulators.append(r_b4_hyp)
+
+    # Chrome: Seek Backward
+    r_b4_chrome = compile_rule(ButtonConfig("4", ButtonBehavior.CLICK, Action("left_arrow")), VID, PID)
+    add_layer_condition(r_b4_chrome, LAYER_RMB, 1)
+    add_app_restriction(r_b4_chrome, APP_CHROME)
+    manipulators.append(r_b4_chrome)
+
+    # Obsidian: Toggle Checkbox
+    r_b4_obs = compile_rule(ButtonConfig("4", ButtonBehavior.CLICK, Action("l", ["left_command"])), VID, PID)
+    add_layer_condition(r_b4_obs, LAYER_RMB, 1)
+    add_app_restriction(r_b4_obs, APP_OBSIDIAN)
+    manipulators.append(r_b4_obs)
 
     r_b4_emacs = compile_rule(ButtonConfig("4", ButtonBehavior.CLICK, make_seq([
         ActionEvent("f", ["left_shift"]),
@@ -159,12 +185,6 @@ def generate_leisure_profile():
     add_layer_condition(r_b4_emacs, LAYER_RMB, 1)
     add_app_restriction(r_b4_emacs, APP_EMACS)
     manipulators.append(r_b4_emacs)
-
-    # RMB (Chrome): Seek Backward / Rewind (Replaces Copy URL)
-    r_b4_chrome = compile_rule(ButtonConfig("4", ButtonBehavior.CLICK, Action("left_arrow")), VID, PID)
-    add_layer_condition(r_b4_chrome, LAYER_RMB, 1)
-    add_app_restriction(r_b4_chrome, APP_CHROME)
-    manipulators.append(r_b4_chrome)
 
     r_b4_subl = compile_rule(ButtonConfig("4", ButtonBehavior.CLICK, Action("d", ["left_command", "left_shift"])), VID, PID)
     add_layer_condition(r_b4_subl, LAYER_RMB, 1)
@@ -197,17 +217,29 @@ def generate_leisure_profile():
 
     r_b5_rmb = compile_rule(ButtonConfig("5", ButtonBehavior.CLICK, Action("escape")), VID, PID)
     add_layer_condition(r_b5_rmb, LAYER_RMB, 1)
-    add_app_restriction(r_b5_rmb, r"^(com\.google\.Chrome|com\.apple\.Notes|com\.sublimetext\.4)$")
+    add_app_restriction(r_b5_rmb, r"^(com\.google\.Chrome|com\.apple\.Notes|com\.sublimetext\.4|md\.obsidian)$")
     manipulators.append(r_b5_rmb)
 
     manipulators.append(compile_rule(ButtonConfig("5", ButtonBehavior.CLICK, Action("z", ["left_command"])), VID, PID))
 
 
-    # --- Button 6: Paste / Commit ---
+    # --- Button 6: Paste / Commit / Seek Fwd ---
 
     r_b6_hyp = compile_rule(ButtonConfig("6", ButtonBehavior.CLICK, Action("v", ["left_option", "left_shift", "left_command"])), VID, PID)
     add_layer_condition(r_b6_hyp, LAYER_HYPER, 1)
     manipulators.append(r_b6_hyp)
+
+    # Chrome: Seek Forward
+    r_b6_chrome = compile_rule(ButtonConfig("6", ButtonBehavior.CLICK, Action("right_arrow")), VID, PID)
+    add_layer_condition(r_b6_chrome, LAYER_RMB, 1)
+    add_app_restriction(r_b6_chrome, APP_CHROME)
+    manipulators.append(r_b6_chrome)
+
+    # Obsidian: Select All
+    r_b6_obs = compile_rule(ButtonConfig("6", ButtonBehavior.CLICK, Action("a", ["left_command"])), VID, PID)
+    add_layer_condition(r_b6_obs, LAYER_RMB, 1)
+    add_app_restriction(r_b6_obs, APP_OBSIDIAN)
+    manipulators.append(r_b6_obs)
 
     r_b6_emacs = compile_rule(ButtonConfig("6", ButtonBehavior.CLICK, make_seq([
         ActionEvent("c"), ActionEvent("c")
@@ -216,17 +248,17 @@ def generate_leisure_profile():
     add_app_restriction(r_b6_emacs, APP_EMACS)
     manipulators.append(r_b6_emacs)
 
-    # RMB (Chrome): Seek Forward / Fast Forward
-    r_b6_chrome = compile_rule(ButtonConfig("6", ButtonBehavior.CLICK, Action("right_arrow")), VID, PID)
-    add_layer_condition(r_b6_chrome, LAYER_RMB, 1)
-    add_app_restriction(r_b6_chrome, APP_CHROME)
-    manipulators.append(r_b6_chrome)
+    # Notes: Indent
+    r_b6_notes = compile_rule(ButtonConfig("6", ButtonBehavior.CLICK, Action("close_bracket", ["left_command"])), VID, PID)
+    add_layer_condition(r_b6_notes, LAYER_RMB, 1)
+    add_app_restriction(r_b6_notes, APP_NOTES)
+    manipulators.append(r_b6_notes)
 
-    # RMB (Notes/Sublime): Paste & Go / Paste
-    r_b6_rmb = compile_rule(ButtonConfig("6", ButtonBehavior.CLICK, Action("v", ["left_command", "left_shift"])), VID, PID)
-    add_layer_condition(r_b6_rmb, LAYER_RMB, 1)
-    add_app_restriction(r_b6_rmb, r"^(com\.apple\.Notes|com\.sublimetext\.4)$") # Excluded Chrome
-    manipulators.append(r_b6_rmb)
+    # Sublime: Paste
+    r_b6_subl = compile_rule(ButtonConfig("6", ButtonBehavior.CLICK, Action("v", ["left_command", "left_shift"])), VID, PID)
+    add_layer_condition(r_b6_subl, LAYER_RMB, 1)
+    add_app_restriction(r_b6_subl, APP_SUBLIME)
+    manipulators.append(r_b6_subl)
 
     manipulators.append(compile_rule(ButtonConfig("6", ButtonBehavior.CLICK, Action("v", ["left_command"])), VID, PID))
 
@@ -237,7 +269,8 @@ def generate_leisure_profile():
 
     # --- Button 7: Start / New ---
 
-    r_b7_hyp = compile_rule(ButtonConfig("7", ButtonBehavior.CLICK, Action("n", ["left_command"])), VID, PID)
+    # Hyper (Wheel): Play/Pause
+    r_b7_hyp = compile_rule(ButtonConfig("7", ButtonBehavior.CLICK, Action("play_or_pause")), VID, PID)
     add_layer_condition(r_b7_hyp, LAYER_HYPER, 1)
     manipulators.append(r_b7_hyp)
 
@@ -248,17 +281,26 @@ def generate_leisure_profile():
     add_app_restriction(r_b7_emacs, APP_EMACS)
     manipulators.append(r_b7_emacs)
 
-    r_b7_chrome = compile_rule(ButtonConfig("7", ButtonBehavior.CLICK, Action("n", ["left_command", "left_shift"])), VID, PID)
+    # Chrome RMB: New Tab (Cmd+T)
+    r_b7_chrome = compile_rule(ButtonConfig("7", ButtonBehavior.CLICK, Action("t", ["left_command"])), VID, PID)
     add_layer_condition(r_b7_chrome, LAYER_RMB, 1)
     add_app_restriction(r_b7_chrome, APP_CHROME)
     manipulators.append(r_b7_chrome)
 
-    r_b7_new = compile_rule(ButtonConfig("7", ButtonBehavior.CLICK, Action("n", ["left_command"])), VID, PID)
-    add_layer_condition(r_b7_new, LAYER_RMB, 1)
-    add_app_restriction(r_b7_new, r"^(com\.sublimetext\.4|com\.apple\.Notes)$")
-    manipulators.append(r_b7_new)
+    # Obsidian RMB: Daily Note (Cmd+Shift+D)
+    r_b7_obs = compile_rule(ButtonConfig("7", ButtonBehavior.CLICK, Action("d", ["left_command", "left_shift"])), VID, PID)
+    add_layer_condition(r_b7_obs, LAYER_RMB, 1)
+    add_app_restriction(r_b7_obs, APP_OBSIDIAN)
+    manipulators.append(r_b7_obs)
 
-    manipulators.append(compile_rule(ButtonConfig("7", ButtonBehavior.CLICK, Action("play_or_pause")), VID, PID))
+    # Notes RMB: Pin Note (Cmd+N as placeholder or custom)
+    r_b7_notes = compile_rule(ButtonConfig("7", ButtonBehavior.CLICK, Action("n", ["left_command"])), VID, PID)
+    add_layer_condition(r_b7_notes, LAYER_RMB, 1)
+    add_app_restriction(r_b7_notes, APP_NOTES)
+    manipulators.append(r_b7_notes)
+
+    # Global Tap: New Window (Cmd+N)
+    manipulators.append(compile_rule(ButtonConfig("7", ButtonBehavior.CLICK, Action("n", ["left_command"])), VID, PID))
 
 
     # --- Button 8: Enter / Status ---
@@ -278,6 +320,12 @@ def generate_leisure_profile():
     add_layer_condition(r_b8_chrome, LAYER_RMB, 1)
     add_app_restriction(r_b8_chrome, APP_CHROME)
     manipulators.append(r_b8_chrome)
+
+    # Obsidian: Command Palette
+    r_b8_obs = compile_rule(ButtonConfig("8", ButtonBehavior.CLICK, Action("p", ["left_command"])), VID, PID)
+    add_layer_condition(r_b8_obs, LAYER_RMB, 1)
+    add_app_restriction(r_b8_obs, APP_OBSIDIAN)
+    manipulators.append(r_b8_obs)
 
     r_b8_subl = compile_rule(ButtonConfig("8", ButtonBehavior.CLICK, Action("p", ["left_command", "left_shift"])), VID, PID)
     add_layer_condition(r_b8_subl, LAYER_RMB, 1)
@@ -307,7 +355,7 @@ def generate_leisure_profile():
 
     r_b9_rmb = compile_rule(ButtonConfig("9", ButtonBehavior.CLICK, Action("w", ["left_command"])), VID, PID)
     add_layer_condition(r_b9_rmb, LAYER_RMB, 1)
-    add_app_restriction(r_b9_rmb, r"^(com\.google\.Chrome|com\.apple\.Notes|com\.sublimetext\.4)$")
+    add_app_restriction(r_b9_rmb, r"^(com\.google\.Chrome|com\.apple\.Notes|com\.sublimetext\.4|md\.obsidian)$")
     manipulators.append(r_b9_rmb)
 
     manipulators.append(compile_rule(ButtonConfig("9", ButtonBehavior.CLICK, Action("w", ["left_command"])), VID, PID))
@@ -340,6 +388,12 @@ def generate_leisure_profile():
     add_app_restriction(r_b10_chrome, APP_CHROME)
     manipulators.append(r_b10_chrome)
 
+    # Obsidian: Quick Switcher
+    r_b10_obs = compile_rule(ButtonConfig("0", ButtonBehavior.CLICK, Action("o", ["left_command"])), VID, PID)
+    add_layer_condition(r_b10_obs, LAYER_RMB, 1)
+    add_app_restriction(r_b10_obs, APP_OBSIDIAN)
+    manipulators.append(r_b10_obs)
+
     r_b10_subl = compile_rule(ButtonConfig("0", ButtonBehavior.CLICK, Action("o", ["left_command"])), VID, PID)
     add_layer_condition(r_b10_subl, LAYER_RMB, 1)
     add_app_restriction(r_b10_subl, APP_SUBLIME)
@@ -370,6 +424,14 @@ def generate_leisure_profile():
     add_layer_condition(r_b11_emacs, LAYER_RMB, 1)
     add_app_restriction(r_b11_emacs, APP_EMACS)
     manipulators.append(r_b11_emacs)
+
+    # Obsidian: Link [[
+    r_b11_obs = compile_rule(ButtonConfig("hyphen", ButtonBehavior.CLICK, make_seq([
+        ActionEvent("open_bracket"), ActionEvent("open_bracket")
+    ])), VID, PID)
+    add_layer_condition(r_b11_obs, LAYER_RMB, 1)
+    add_app_restriction(r_b11_obs, APP_OBSIDIAN)
+    manipulators.append(r_b11_obs)
 
     r_b11_chrome = compile_rule(ButtonConfig("hyphen", ButtonBehavior.CLICK, Action("d", ["left_command"])), VID, PID)
     add_layer_condition(r_b11_chrome, LAYER_RMB, 1)
@@ -408,6 +470,12 @@ def generate_leisure_profile():
     add_app_restriction(r_b12_emacs, APP_EMACS)
     manipulators.append(r_b12_emacs)
 
+    # Obsidian: Fold/Unfold
+    r_b12_obs = compile_rule(ButtonConfig("equal_sign", ButtonBehavior.CLICK, Action("open_bracket", ["left_command", "left_option"])), VID, PID)
+    add_layer_condition(r_b12_obs, LAYER_RMB, 1)
+    add_app_restriction(r_b12_obs, APP_OBSIDIAN)
+    manipulators.append(r_b12_obs)
+
     r_b12_subl = compile_rule(ButtonConfig("equal_sign", ButtonBehavior.CLICK, Action("a", ["left_command"])), VID, PID)
     add_layer_condition(r_b12_subl, LAYER_RMB, 1)
     add_app_restriction(r_b12_subl, APP_SUBLIME)
@@ -420,10 +488,10 @@ def generate_leisure_profile():
     # OUTPUT
     # ==========================================================================
     profile_json = {
-        "title": "test v3.0",
+        "title": "test v4.2",
         "rules": [
             {
-                "description": "MouseMapper V3.9 (Button Seek)",
+                "description": "MouseMapper V4.2",
                 "manipulators": manipulators
             }
         ]
